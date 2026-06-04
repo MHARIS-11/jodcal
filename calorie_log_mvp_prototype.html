@@ -1,0 +1,487 @@
+
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --g50:#f0faf4; --g100:#c6ecd5; --g400:#3a9e65; --g500:#2d8653; --g600:#1f6e41;
+    --g800:#0f3d24; --gray50:#f8f8f7; --gray100:#e8e8e6; --gray300:#b4b2a9;
+    --card-bg: var(--color-background-primary);
+    --surface: var(--color-background-secondary);
+  }
+  body { font-family: var(--font-sans); }
+  .app { max-width: 680px; min-height: 600px; }
+  .nav-bar { background: var(--g400); padding: 0 16px; display: flex; align-items: center; gap: 0; border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0; }
+  .nav-bar .logo { color: #fff; font-size: 15px; font-weight: 500; padding: 14px 0; flex: 1; }
+  .nav-item { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 10px 14px; cursor: pointer; color: rgba(255,255,255,0.65); font-size: 10px; border-bottom: 2px solid transparent; transition: all 0.15s; }
+  .nav-item.active { color: #fff; border-bottom: 2px solid #fff; }
+  .nav-item i { font-size: 18px; }
+  .page { display: none; padding: 16px; background: var(--surface); border-radius: 0 0 var(--border-radius-lg) var(--border-radius-lg); }
+  .page.active { display: block; }
+  .card { background: var(--card-bg); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); padding: 14px 16px; margin-bottom: 12px; }
+  .card-title { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 8px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+  .stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
+  .stat-card { background: var(--card-bg); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 12px; text-align: center; }
+  .stat-label { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 4px; }
+  .stat-val { font-size: 22px; font-weight: 500; color: var(--color-text-primary); }
+  .stat-val.green { color: var(--g400); }
+  .stat-val.red { color: #e24b4a; }
+  .stat-unit { font-size: 11px; color: var(--color-text-secondary); }
+  .progress-bar-wrap { background: var(--gray100); border-radius: 99px; height: 10px; overflow: hidden; margin: 8px 0 4px; }
+  .progress-bar-fill { height: 100%; border-radius: 99px; background: var(--g400); transition: width 0.5s ease; }
+  .progress-bar-fill.over { background: #e24b4a; }
+  .progress-label { display: flex; justify-content: space-between; font-size: 11px; color: var(--color-text-secondary); }
+  .calendar { width: 100%; }
+  .cal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .cal-header span { font-weight: 500; font-size: 14px; color: var(--color-text-primary); }
+  .cal-header button { background: none; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 4px 10px; cursor: pointer; font-size: 13px; color: var(--color-text-secondary); }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .cal-day-label { text-align: center; font-size: 11px; color: var(--color-text-secondary); padding: 4px 0; font-weight: 500; }
+  .cal-day { aspect-ratio: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; border-radius: var(--border-radius-md); cursor: pointer; font-size: 12px; position: relative; transition: background 0.1s; border: 0.5px solid transparent; }
+  .cal-day:hover { background: var(--g50); }
+  .cal-day.today { background: var(--g400); color: #fff; font-weight: 500; }
+  .cal-day.has-data .dot { width: 4px; height: 4px; border-radius: 50%; background: var(--g400); position: absolute; bottom: 4px; }
+  .cal-day.today .dot { background: rgba(255,255,255,0.8); }
+  .cal-day.over .dot { background: #e24b4a; }
+  .cal-day.other-month { color: var(--color-text-tertiary); }
+  .btn-primary { background: var(--g400); color: #fff; border: none; border-radius: var(--border-radius-md); padding: 10px 20px; font-size: 14px; cursor: pointer; font-weight: 500; display: flex; align-items: center; gap: 6px; }
+  .btn-primary:hover { background: var(--g500); }
+  .btn-outline { background: none; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); padding: 8px 14px; font-size: 13px; cursor: pointer; color: var(--color-text-secondary); }
+  .btn-outline:hover { background: var(--surface); }
+  .section-title { font-size: 14px; font-weight: 500; color: var(--color-text-primary); margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+  .meal-group { margin-bottom: 12px; }
+  .meal-group-label { font-size: 11px; font-weight: 500; color: var(--g600); background: var(--g50); border-radius: var(--border-radius-md); padding: 4px 10px; display: inline-block; margin-bottom: 6px; }
+  .meal-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--card-bg); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); margin-bottom: 5px; }
+  .meal-item-info { flex: 1; }
+  .meal-item-name { font-size: 14px; color: var(--color-text-primary); }
+  .meal-item-time { font-size: 11px; color: var(--color-text-secondary); }
+  .meal-item-cal { font-size: 14px; font-weight: 500; color: var(--g500); }
+  .meal-item-del { background: none; border: none; cursor: pointer; color: var(--color-text-tertiary); font-size: 16px; padding: 4px; }
+  .meal-item-del:hover { color: #e24b4a; }
+  .form-group { margin-bottom: 14px; }
+  .form-label { font-size: 12px; color: var(--color-text-secondary); margin-bottom: 6px; display: block; font-weight: 500; }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  input[type=text], input[type=number], select { width: 100%; padding: 9px 12px; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); font-size: 14px; background: var(--card-bg); color: var(--color-text-primary); }
+  .food-search-result { background: var(--card-bg); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); margin-top: 6px; overflow: hidden; display: none; }
+  .food-search-item { padding: 10px 12px; cursor: pointer; display: flex; justify-content: space-between; align-items: center; font-size: 13px; border-bottom: 0.5px solid var(--color-border-tertiary); }
+  .food-search-item:last-child { border-bottom: none; }
+  .food-search-item:hover { background: var(--g50); }
+  .food-cal-badge { background: var(--g50); color: var(--g600); border-radius: var(--border-radius-md); padding: 2px 8px; font-size: 12px; font-weight: 500; }
+  .summary-bar { background: var(--g50); border: 0.5px solid var(--g100); border-radius: var(--border-radius-md); padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+  .summary-total { font-size: 13px; color: var(--color-text-secondary); }
+  .summary-total strong { color: var(--g500); font-size: 16px; }
+  .weight-entry { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 16px; }
+  .weight-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 16px; }
+  .w-stat { background: var(--card-bg); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 12px; text-align: center; }
+  .w-stat-label { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 4px; }
+  .w-stat-val { font-size: 20px; font-weight: 500; }
+  .w-stat-val.loss { color: var(--g400); }
+  .profile-section { margin-bottom: 14px; }
+  .profile-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 0.5px solid var(--color-border-tertiary); font-size: 14px; }
+  .profile-row:last-child { border-bottom: none; }
+  .profile-key { color: var(--color-text-secondary); }
+  .profile-val { color: var(--color-text-primary); font-weight: 500; }
+  .tdee-box { background: var(--g50); border: 0.5px solid var(--g100); border-radius: var(--border-radius-lg); padding: 16px; margin-top: 12px; }
+  .tdee-row { display: flex; justify-content: space-between; font-size: 13px; padding: 5px 0; }
+  .tdee-row .val { font-weight: 500; color: var(--g500); }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 99px; font-size: 11px; font-weight: 500; }
+  .badge-green { background: var(--g50); color: var(--g600); }
+  .badge-red { background: #fcebeb; color: #a32d2d; }
+  .empty-hint { text-align: center; color: var(--color-text-tertiary); font-size: 13px; padding: 24px 0; }
+  .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: var(--g500); color: #fff; padding: 10px 20px; border-radius: var(--border-radius-lg); font-size: 13px; font-weight: 500; opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 999; }
+  .toast.show { opacity: 1; }
+  .chart-wrap { position: relative; width: 100%; }
+  .monthly-stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 14px; }
+  .m-stat { background: var(--card-bg); border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-md); padding: 12px; }
+  .m-stat-label { font-size: 11px; color: var(--color-text-secondary); margin-bottom: 4px; }
+  .m-stat-val { font-size: 20px; font-weight: 500; color: var(--color-text-primary); }
+</style>
+
+<h2 class="sr-only">Calorie Log — แอปบันทึกแคลอรี่ส่วนตัว มี 5 หน้า: หน้าแรก, บันทึกมื้ออาหาร, สรุปเดือน, น้ำหนัก, โปรไฟล์</h2>
+
+<div class="app">
+  <nav class="nav-bar">
+    <div class="logo"><i class="ti ti-leaf" aria-hidden="true"></i> CalLog</div>
+    <div class="nav-item active" data-page="home" onclick="showPage('home',this)"><i class="ti ti-home"></i><span>หน้าแรก</span></div>
+    <div class="nav-item" data-page="log" onclick="showPage('log',this)"><i class="ti ti-pencil-plus"></i><span>บันทึก</span></div>
+    <div class="nav-item" data-page="monthly" onclick="showPage('monthly',this)"><i class="ti ti-chart-bar"></i><span>เดือน</span></div>
+    <div class="nav-item" data-page="weight" onclick="showPage('weight',this)"><i class="ti ti-scale"></i><span>น้ำหนัก</span></div>
+    <div class="nav-item" data-page="profile" onclick="showPage('profile',this)"><i class="ti ti-user-circle"></i><span>โปรไฟล์</span></div>
+  </nav>
+
+  <!-- HOME PAGE -->
+  <div id="page-home" class="page active">
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+        <div>
+          <div style="font-size:13px;color:var(--color-text-secondary)">วันนี้</div>
+          <div style="font-size:16px;font-weight:500;color:var(--color-text-primary)" id="today-date"></div>
+        </div>
+        <button class="btn-primary" onclick="showPage('log', document.querySelector('[data-page=log]'))"><i class="ti ti-plus" aria-hidden="true"></i> เพิ่มมื้ออาหาร</button>
+      </div>
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-label">กินไปแล้ว</div>
+          <div class="stat-val green" id="today-eaten">1,240</div>
+          <div class="stat-unit">kcal</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">เป้าหมาย</div>
+          <div class="stat-val">1,800</div>
+          <div class="stat-unit">kcal</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">คงเหลือ</div>
+          <div class="stat-val green" id="today-remain">560</div>
+          <div class="stat-unit">kcal</div>
+        </div>
+      </div>
+      <div class="progress-label"><span>0</span><span id="prog-pct">69%</span><span>1,800</span></div>
+      <div class="progress-bar-wrap"><div class="progress-bar-fill" id="prog-bar" style="width:69%"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="cal-header">
+        <button onclick="changeMonth(-1)"><i class="ti ti-chevron-left" aria-hidden="true"></i></button>
+        <span id="cal-month-label"></span>
+        <button onclick="changeMonth(1)"><i class="ti ti-chevron-right" aria-hidden="true"></i></button>
+      </div>
+      <div class="cal-grid" id="cal-grid"></div>
+    </div>
+
+    <div id="day-detail-card" style="display:none" class="card">
+      <div class="section-title">
+        <span id="day-detail-title">รายการวันที่เลือก</span>
+        <span id="day-detail-cal" style="font-size:13px;color:var(--g500)"></span>
+      </div>
+      <div id="day-detail-list"></div>
+    </div>
+  </div>
+
+  <!-- LOG PAGE -->
+  <div id="page-log" class="page">
+    <div class="card">
+      <div class="card-title">บันทึกมื้ออาหาร — Meal Entry</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">มื้อ (Meal)</label>
+          <select id="meal-type">
+            <option>🌅 เช้า</option>
+            <option>☀️ เที่ยง</option>
+            <option>🌙 เย็น</option>
+            <option>🌙 ค่ำ</option>
+            <option>🌃 ดึก</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">เวลา (Time)</label>
+          <input type="text" id="meal-time" placeholder="08:00" />
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ค้นหาเมนู (Search food)</label>
+        <input type="text" id="food-search" placeholder="เช่น ข้าวผัด, ลาบ, สลัด…" oninput="searchFood(this.value)" />
+        <div class="food-search-result" id="food-results"></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">เมนู (Food name)</label>
+          <input type="text" id="food-name" placeholder="ชื่ออาหาร" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">แคลอรี่ (Calories)</label>
+          <input type="number" id="food-cal" placeholder="kcal" />
+        </div>
+      </div>
+      <button class="btn-primary" onclick="addMeal()" style="width:100%;justify-content:center"><i class="ti ti-device-floppy" aria-hidden="true"></i> บันทึก</button>
+    </div>
+
+    <div class="card">
+      <div class="section-title">รายการวันนี้ <span class="badge badge-green" id="log-total-badge">1,240 kcal</span></div>
+      <div id="today-meals-list"></div>
+    </div>
+  </div>
+
+  <!-- MONTHLY PAGE -->
+  <div id="page-monthly" class="page">
+    <div class="card">
+      <div class="card-title">สรุปเดือนนี้ — Monthly Summary</div>
+      <div class="monthly-stats">
+        <div class="m-stat"><div class="m-stat-label">แคลอรี่รวม</div><div class="m-stat-val">37,450 kcal</div></div>
+        <div class="m-stat"><div class="m-stat-label">เฉลี่ย/วัน</div><div class="m-stat-val">1,748 kcal</div></div>
+        <div class="m-stat"><div class="m-stat-label">วันที่อยู่ในเป้า ✓</div><div class="m-stat-val" style="color:var(--g400)">19 วัน</div></div>
+        <div class="m-stat"><div class="m-stat-label">วันที่เกินเป้า ✗</div><div class="m-stat-val" style="color:#e24b4a">2 วัน</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Daily Calories Trend</div>
+      <div class="chart-wrap" style="height:220px"><canvas id="monthlyChart" role="img" aria-label="กราฟแท่งแคลอรี่รายวันเดือนมิถุนายน">Daily calorie data for June 2026</canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Weight Trend</div>
+      <div class="chart-wrap" style="height:180px"><canvas id="weightMonthChart" role="img" aria-label="กราฟเส้นน้ำหนักตลอดเดือน">Weight trend for June 2026</canvas></div>
+    </div>
+  </div>
+
+  <!-- WEIGHT PAGE -->
+  <div id="page-weight" class="page">
+    <div class="card">
+      <div class="card-title">บันทึกน้ำหนัก — Weight Tracking</div>
+      <div class="weight-entry">
+        <div class="form-group" style="flex:1;margin-bottom:0">
+          <label class="form-label">วันที่</label>
+          <input type="text" id="w-date" placeholder="04/06/2026" />
+        </div>
+        <div class="form-group" style="flex:1;margin-bottom:0">
+          <label class="form-label">น้ำหนัก (kg)</label>
+          <input type="number" id="w-val" placeholder="65.5" step="0.1" />
+        </div>
+        <button class="btn-primary" onclick="addWeight()" style="height:38px"><i class="ti ti-plus" aria-hidden="true"></i></button>
+      </div>
+      <div class="weight-stats">
+        <div class="w-stat"><div class="w-stat-label">น้ำหนักเริ่มต้น</div><div class="w-stat-val">72.0 kg</div></div>
+        <div class="w-stat"><div class="w-stat-label">ปัจจุบัน</div><div class="w-stat-val">68.5 kg</div></div>
+        <div class="w-stat"><div class="w-stat-label">เปลี่ยนแปลง</div><div class="w-stat-val loss">-3.5 kg</div></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">กราฟน้ำหนัก</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="weightChart" role="img" aria-label="กราฟเส้นน้ำหนักตั้งแต่เริ่มต้น">Weight history since start</canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">ประวัติน้ำหนัก</div>
+      <div id="weight-history-list"></div>
+    </div>
+  </div>
+
+  <!-- PROFILE PAGE -->
+  <div id="page-profile" class="page">
+    <div class="card">
+      <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px">
+        <div style="width:52px;height:52px;border-radius:50%;background:var(--g50);border:0.5px solid var(--g100);display:flex;align-items:center;justify-content:center;font-size:22px;color:var(--g400)"><i class="ti ti-user" aria-hidden="true"></i></div>
+        <div>
+          <div style="font-size:16px;font-weight:500;color:var(--color-text-primary)">ผู้ใช้งาน</div>
+          <div style="font-size:12px;color:var(--color-text-secondary)">เป้าหมาย: ลดน้ำหนัก</div>
+        </div>
+      </div>
+      <div class="profile-section">
+        <div class="profile-row"><span class="profile-key">เพศ</span><span class="profile-val">ชาย</span></div>
+        <div class="profile-row"><span class="profile-key">อายุ</span><span class="profile-val">28 ปี</span></div>
+        <div class="profile-row"><span class="profile-key">น้ำหนัก</span><span class="profile-val">68.5 kg</span></div>
+        <div class="profile-row"><span class="profile-key">ส่วนสูง</span><span class="profile-val">175 cm</span></div>
+        <div class="profile-row"><span class="profile-key">ระดับกิจกรรม</span><span class="profile-val">ออกกำลังกายปานกลาง</span></div>
+      </div>
+      <div class="tdee-box">
+        <div style="font-size:12px;font-weight:500;color:var(--g600);margin-bottom:8px">การคำนวณพลังงาน</div>
+        <div class="tdee-row"><span style="color:var(--color-text-secondary)">BMR</span><span class="val">1,680 kcal</span></div>
+        <div class="tdee-row"><span style="color:var(--color-text-secondary)">TDEE</span><span class="val">2,100 kcal</span></div>
+        <div class="tdee-row" style="border-top:0.5px solid var(--g100);margin-top:6px;padding-top:6px"><span style="color:var(--color-text-primary);font-weight:500">เป้าหมายต่อวัน</span><span class="val" style="font-size:15px">1,800 kcal</span></div>
+      </div>
+    </div>
+    <button class="btn-outline" style="width:100%;margin-top:4px"><i class="ti ti-edit" aria-hidden="true"></i> แก้ไขข้อมูลส่วนตัว</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const FOOD_DB = [
+  {name:'ข้าวผัดกุ้ง',cal:450},{name:'ข้าวผัดไก่',cal:420},{name:'ข้าวมันไก่',cal:560},
+  {name:'ก๋วยเตี๋ยวหมูน้ำตก',cal:380},{name:'ผัดไทยกุ้งสด',cal:490},{name:'ลาบหมู',cal:320},
+  {name:'ต้มยำกุ้ง',cal:280},{name:'ข้าวสวย (1 ถ้วย)',cal:200},{name:'ไข่ดาว',cal:90},
+  {name:'สลัดผัก',cal:120},{name:'กาแฟเย็น',cal:180},{name:'นมสด 1 แก้ว',cal:150},
+  {name:'โยเกิร์ต',cal:130},{name:'กล้วย',cal:90},{name:'แอปเปิ้ล',cal:80},
+  {name:'ส้ม',cal:60},{name:'ไก่ย่าง',cal:250},{name:'แกงเขียวหวาน',cal:350},
+  {name:'ข้าวโพดต้ม',cal:130},{name:'เต้าหู้ทอด',cal:200}
+];
+
+let todayMeals = [
+  {type:'🌅 เช้า',time:'08:00',name:'ข้าวต้มหมู + ไข่',cal:350},
+  {type:'☀️ เที่ยง',time:'12:30',name:'ข้าวมันไก่',cal:560},
+  {type:'☀️ เที่ยง',time:'13:00',name:'กาแฟเย็น',cal:180},
+  {type:'🌙 เย็น',time:'18:00',name:'ก๋วยเตี๋ยวหมู',cal:380},
+];
+
+let weightHistory = [
+  {date:'01/05',val:72.0},{date:'08/05',val:71.2},{date:'15/05',val:70.5},
+  {date:'22/05',val:69.8},{date:'29/05',val:69.1},{date:'04/06',val:68.5}
+];
+
+const TARGET = 1800;
+let calMonth = new Date();
+
+function showPage(id, el) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if(el) el.classList.add('active');
+  if(id==='monthly') renderMonthlyCharts();
+  if(id==='weight') renderWeightChart();
+  if(id==='log') renderTodayMeals();
+}
+
+function toast(msg) {
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+function getTodayEaten() { return todayMeals.reduce((s,m)=>s+m.cal,0); }
+
+function updateDashboard() {
+  const eaten=getTodayEaten(), remain=Math.max(0,TARGET-eaten);
+  const pct=Math.min(100,Math.round(eaten/TARGET*100));
+  document.getElementById('today-eaten').textContent=eaten.toLocaleString();
+  document.getElementById('today-remain').textContent=remain.toLocaleString();
+  document.getElementById('prog-bar').style.width=pct+'%';
+  document.getElementById('prog-pct').textContent=pct+'%';
+  if(pct>=100) { document.getElementById('prog-bar').classList.add('over'); document.getElementById('today-remain').classList.replace('green','red'); }
+  document.getElementById('log-total-badge').textContent=eaten.toLocaleString()+' kcal';
+}
+
+function renderTodayMeals() {
+  const groups={};
+  todayMeals.forEach(m=>{(groups[m.type]=groups[m.type]||[]).push(m);});
+  const el=document.getElementById('today-meals-list');
+  el.innerHTML='';
+  if(!todayMeals.length){el.innerHTML='<div class="empty-hint">ยังไม่มีรายการวันนี้</div>';return;}
+  Object.entries(groups).forEach(([type,items])=>{
+    const g=document.createElement('div'); g.className='meal-group';
+    g.innerHTML='<div class="meal-group-label">'+type+'</div>';
+    items.forEach((item,i)=>{
+      const div=document.createElement('div'); div.className='meal-item';
+      div.innerHTML=`<div class="meal-item-info"><div class="meal-item-name">${item.name}</div><div class="meal-item-time">${item.time}</div></div><div class="meal-item-cal">${item.cal} kcal</div><button class="meal-item-del" onclick="delMeal('${type}',${i})" aria-label="ลบ"><i class="ti ti-trash" aria-hidden="true"></i></button>`;
+      g.appendChild(div);
+    });
+    el.appendChild(g);
+  });
+  updateDashboard();
+}
+
+function delMeal(type,idx) {
+  const t=todayMeals.filter(m=>m.type===type);
+  const target=t[idx];
+  const gi=todayMeals.indexOf(target);
+  if(gi>-1) todayMeals.splice(gi,1);
+  renderTodayMeals();
+  toast('ลบรายการแล้ว');
+}
+
+function searchFood(q) {
+  const box=document.getElementById('food-results');
+  if(!q){box.style.display='none';return;}
+  const res=FOOD_DB.filter(f=>f.name.includes(q)||f.name.toLowerCase().includes(q.toLowerCase()));
+  if(!res.length){box.style.display='none';return;}
+  box.innerHTML=res.slice(0,5).map(f=>`<div class="food-search-item" onclick="selectFood('${f.name}',${f.cal})"><span>${f.name}</span><span class="food-cal-badge">${f.cal} kcal</span></div>`).join('');
+  box.style.display='block';
+}
+
+function selectFood(name,cal) {
+  document.getElementById('food-name').value=name;
+  document.getElementById('food-cal').value=cal;
+  document.getElementById('food-search').value=name;
+  document.getElementById('food-results').style.display='none';
+}
+
+function addMeal() {
+  const type=document.getElementById('meal-type').value;
+  const time=document.getElementById('meal-time').value||'--:--';
+  const name=document.getElementById('food-name').value.trim();
+  const cal=parseInt(document.getElementById('food-cal').value)||0;
+  if(!name||!cal){toast('กรุณากรอกข้อมูลให้ครบ');return;}
+  todayMeals.push({type,time,name,cal});
+  document.getElementById('food-name').value='';
+  document.getElementById('food-cal').value='';
+  document.getElementById('food-search').value='';
+  renderTodayMeals();
+  toast('บันทึกแล้ว ✓');
+}
+
+function addWeight() {
+  const d=document.getElementById('w-date').value;
+  const v=parseFloat(document.getElementById('w-val').value);
+  if(!d||!v){toast('กรุณากรอกข้อมูล');return;}
+  weightHistory.push({date:d,val:v});
+  document.getElementById('w-date').value='';
+  document.getElementById('w-val').value='';
+  renderWeightChart();
+  renderWeightHistory();
+  toast('บันทึกน้ำหนักแล้ว ✓');
+}
+
+function renderWeightHistory() {
+  const el=document.getElementById('weight-history-list');
+  el.innerHTML=[...weightHistory].reverse().slice(0,6).map(w=>`<div style="display:flex;justify-content:space-between;padding:9px 0;border-bottom:0.5px solid var(--color-border-tertiary);font-size:13px"><span style="color:var(--color-text-secondary)">${w.date}</span><span style="font-weight:500">${w.val} kg</span></div>`).join('');
+}
+
+let monthlyChart, weightMonthChart, weightChartInst;
+function renderMonthlyCharts() {
+  const days=['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21'];
+  const cals=[1750,1820,1680,1900,1780,1650,1800,1750,1600,1850,1720,1800,1700,1900,1780,1600,1850,1720,1800,1750,1240];
+  const ctx1=document.getElementById('monthlyChart').getContext('2d');
+  if(monthlyChart) monthlyChart.destroy();
+  monthlyChart=new Chart(ctx1,{type:'bar',data:{labels:days,datasets:[{label:'Calories',data:cals,backgroundColor:cals.map(c=>c>1800?'#e24b4a':'#3a9e65'),borderRadius:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{font:{size:10}}},y:{min:1400,ticks:{font:{size:10}}}}}});
+  const ctx2=document.getElementById('weightMonthChart').getContext('2d');
+  if(weightMonthChart) weightMonthChart.destroy();
+  weightMonthChart=new Chart(ctx2,{type:'line',data:{labels:['1/5','8/5','15/5','22/5','29/5','4/6'],datasets:[{label:'น้ำหนัก',data:[72.0,71.2,70.5,69.8,69.1,68.5],borderColor:'#3a9e65',backgroundColor:'rgba(58,158,101,0.1)',tension:0.3,pointRadius:4,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{min:67,max:73,ticks:{font:{size:11}}}}}});
+}
+
+function renderWeightChart() {
+  const ctx=document.getElementById('weightChart').getContext('2d');
+  if(weightChartInst) weightChartInst.destroy();
+  weightChartInst=new Chart(ctx,{type:'line',data:{labels:weightHistory.map(w=>w.date),datasets:[{label:'kg',data:weightHistory.map(w=>w.val),borderColor:'#3a9e65',backgroundColor:'rgba(58,158,101,0.08)',tension:0.3,pointRadius:5,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{ticks:{font:{size:11}}}}}});
+}
+
+function buildCalendar() {
+  const grid=document.getElementById('cal-grid');
+  const label=document.getElementById('cal-month-label');
+  const year=calMonth.getFullYear(), month=calMonth.getMonth();
+  label.textContent=calMonth.toLocaleDateString('th-TH',{year:'numeric',month:'long'});
+  grid.innerHTML='';
+  const days=['อา','จ','อ','พ','พฤ','ศ','ส'];
+  days.forEach(d=>{const el=document.createElement('div');el.className='cal-day-label';el.textContent=d;grid.appendChild(el);});
+  const first=new Date(year,month,1).getDay();
+  const total=new Date(year,month+1,0).getDate();
+  const today=new Date();
+  const mockData={3:1650,5:1900,8:1780,10:1820,12:1750,15:1680,17:1600,19:1850,21:1240};
+  for(let i=0;i<first;i++){const el=document.createElement('div');el.className='cal-day other-month';grid.appendChild(el);}
+  for(let d=1;d<=total;d++){
+    const el=document.createElement('div'); el.className='cal-day';
+    el.textContent=d;
+    const isToday=d===today.getDate()&&month===today.getMonth()&&year===today.getFullYear();
+    if(isToday) el.classList.add('today');
+    if(mockData[d]){
+      el.classList.add('has-data');
+      if(mockData[d]>TARGET) el.classList.add('over');
+      const dot=document.createElement('div'); dot.className='dot'; el.appendChild(dot);
+    }
+    el.onclick=()=>showDayDetail(d,mockData[d]);
+    grid.appendChild(el);
+  }
+}
+
+function showDayDetail(d,cal) {
+  const card=document.getElementById('day-detail-card');
+  const title=document.getElementById('day-detail-title');
+  const calEl=document.getElementById('day-detail-cal');
+  const list=document.getElementById('day-detail-list');
+  title.textContent='วันที่ '+d+' มิถุนายน 2569';
+  if(cal){
+    calEl.textContent=cal+' kcal '+(cal>TARGET?'⚠️ เกินเป้า':'✓ อยู่ในเป้า');
+    list.innerHTML='<div style="color:var(--color-text-secondary);font-size:13px;text-align:center;padding:12px 0">กดวันนี้เพื่อดูรายละเอียดจาก database</div>';
+  } else {
+    calEl.textContent='ยังไม่มีข้อมูล';
+    list.innerHTML='<div class="empty-hint">ไม่มีรายการวันนี้</div>';
+  }
+  card.style.display='block';
+  card.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function changeMonth(dir) { calMonth.setMonth(calMonth.getMonth()+dir); buildCalendar(); }
+
+const d=new Date();
+document.getElementById('today-date').textContent=d.toLocaleDateString('th-TH',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+document.getElementById('meal-time').value=d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+buildCalendar();
+renderTodayMeals();
+renderWeightHistory();
+</script>
