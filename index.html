@@ -2442,6 +2442,12 @@
 
       els.form.addEventListener("submit", handleTransactionSubmit);
       els.backfillForm.addEventListener("submit", handleBackfillSubmit);
+      document.getElementById("saveBackfillButton").addEventListener("pointerdown", (event) => {
+        if (Date.now() < state.blockSubmitUntil) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      });
       els.categoryInput.addEventListener("change", () => {
         if (els.transactionModeInput.value === "itemized") {
           state.transactionLines = state.transactionLines.map((line) => ({ ...line, category: els.categoryInput.value }));
@@ -2664,7 +2670,7 @@
         state.calcEl.dispatchEvent(new Event("input", { bubbles: true }));
         state.calcEl.dispatchEvent(new Event("change", { bubbles: true }));
       }
-      state.blockSubmitUntil = Date.now() + 450;
+      state.blockSubmitUntil = Date.now() + 900;
       closeCalc();
     }
 
