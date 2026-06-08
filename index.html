@@ -176,6 +176,59 @@
       padding: 16px;
     }
 
+    .band-title-row {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px 16px 0;
+    }
+
+    .band-title-row .band-head {
+      padding: 0;
+    }
+
+    .collapsible {
+      overflow: hidden;
+    }
+
+    .collapsible > summary {
+      min-height: 58px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 16px;
+      cursor: pointer;
+      font-weight: 800;
+      list-style: none;
+    }
+
+    .collapsible > summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .collapsible > summary::after {
+      content: "+";
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--muted);
+      border: 1px solid var(--line);
+      flex: 0 0 auto;
+    }
+
+    .collapsible[open] > summary::after {
+      content: "-";
+    }
+
+    .collapsible .band-body {
+      border-top: 1px solid var(--line);
+    }
+
     .section-title {
       margin: 0;
       font-size: 1rem;
@@ -354,6 +407,32 @@
       background: var(--surface);
       border: 1px solid var(--line);
       border-radius: var(--radius);
+    }
+
+    .compact-list {
+      gap: 7px;
+    }
+
+    .compact-item {
+      padding: 9px 10px;
+      box-shadow: none;
+    }
+
+    .compact-item .item-row {
+      align-items: center;
+    }
+
+    .compact-item .item-title {
+      font-size: 0.94rem;
+      line-height: 1.25;
+    }
+
+    .compact-item .item-meta {
+      font-size: 0.78rem;
+    }
+
+    .compact-item .item-kcal {
+      font-size: 0.92rem;
     }
 
     .item-row {
@@ -920,6 +999,24 @@
       late_night: "Late Night"
     };
 
+    const weightNoteLabels = {
+      normal: "ปกติ",
+      work: "ทำงาน",
+      after_food: "หลังอาหาร",
+      other: "อื่นๆ"
+    };
+
+    const activitySuggestions = [
+      "วิ่ง",
+      "ปั่นจักรยาน",
+      "วิ่ง + เดิน",
+      "เล่นบาส",
+      "เล่นแบด",
+      "เล่นบอล",
+      "เวทเทรนนิ่ง",
+      "เดินเร็ว"
+    ];
+
     const runtime = {
       tab: "home",
       selectedDate: dateKey(new Date()),
@@ -927,8 +1024,9 @@
       summaryMonth: monthKey(new Date()),
       foodFilter: "",
       addonFilter: "",
-      weightEditId: null,
-      modal: null
+      historyEditMode: false,
+      modal: null,
+      weightModal: null
     };
 
     let state = loadState();
@@ -1012,6 +1110,7 @@
         foodAddons: [],
         mealLogs: [],
         weightLogs: [],
+        exerciseLogs: [],
         settings: {
           theme: "light",
           deletedStarterFoods: [],
@@ -1029,6 +1128,7 @@
       merged.foodAddons = Array.isArray(merged.foodAddons) ? merged.foodAddons : [];
       merged.mealLogs = Array.isArray(merged.mealLogs) ? merged.mealLogs : [];
       merged.weightLogs = Array.isArray(merged.weightLogs) ? merged.weightLogs : [];
+      merged.exerciseLogs = Array.isArray(merged.exerciseLogs) ? merged.exerciseLogs : [];
 
       seedStarterData(merged);
       return merged;
@@ -1128,6 +1228,56 @@
 
     function totalForDate(date) {
       return logsForDate(date).reduce((sum, log) => sum + Number(log.totalCalories || 0), 0);
+    }
+
+    function totalFoodForMonth(month) {
+      return monthDays(month).reduce((sum, day) => sum + totalForDate(day), 0);
+    }
+
+    function exerciseLogsForMonth(month) {
+      return state.exerciseLogs
+        .filter((log) => String(log.date || "").startsWith(month))
+        .sort((a, b) => `${b.date} ${b.time || "00:00"}`.localeCompare(`${a.date} ${a.time || "00:00"}`));
+    }
+
+    function totalExerciseForMonth(month) {
+      return exerciseLogsForMonth(month).reduce((sum, log) => sum + Number(log.caloriesBurned || 0), 0);
+    }
+
+    function monthDashboardStats(month) {
+      const eaten = totalFoodForMonth(month);
+      const burned = totalExerciseForMonth(month);
+      const exerciseCount = exerciseLogsForMonth(month).length;
+      return {
+        eaten,
+        burned,
+        net: eaten - burned,
+        hasExercise: exerciseCount > 0
+      };
+    }
+
+    function normalizeWeightNoteType(log) {
+      if (log.noteType && weightNoteLabels[log.noteType]) return log.noteType;
+      const note = String(log.note || "").trim();
+      const match = Object.entries(weightNoteLabels).find(([, label]) => label === note);
+      return match ? match[0] : note ? "other" : "normal";
+    }
+
+    function formatWeightNote(log) {
+      const noteType = normalizeWeightNoteType(log);
+      const label = weightNoteLabels[noteType] || weightNoteLabels.normal;
+      const note = String(log.note || "").trim();
+      if (!note || note === label) return label;
+      return `${label} · ${note}`;
+    }
+
+    function sortedWeightLogs(desc = true) {
+      const logs = [...state.weightLogs];
+      return logs.sort((a, b) => {
+        const left = `${a.date} ${a.time || "00:00"}`;
+        const right = `${b.date} ${b.time || "00:00"}`;
+        return desc ? right.localeCompare(left) : left.localeCompare(right);
+      });
     }
 
     function recentFoods(limit = 5) {
@@ -1349,6 +1499,32 @@
       render();
     }
 
+    function addCustomFood() {
+      const nameEl = document.getElementById("newFoodName");
+      const kcalEl = document.getElementById("newFoodCalories");
+      const name = nameEl?.value.trim() || "";
+      const kcalValue = kcalEl ? kcalEl.value : "";
+      const calories = numberOrNull(kcalValue);
+      if (!name) return alert("กรุณากรอกชื่ออาหาร");
+      if (kcalValue !== "" && (!Number.isFinite(calories) || calories <= 0)) return alert("แคลอรีต้องเป็นตัวเลขบวก");
+      const exists = state.foods.find((food) => food.name.trim().toLowerCase() === name.toLowerCase());
+      if (exists) return alert("มีอาหารชื่อนี้อยู่แล้ว");
+
+      const now = nowIso();
+      state.foods.push({
+        id: uid("food"),
+        name,
+        defaultCalories: calories,
+        usageCount: 0,
+        lastUsedAt: null,
+        isStarter: false,
+        createdAt: now,
+        updatedAt: now
+      });
+      saveState();
+      render();
+    }
+
     function deleteFood(id) {
       const food = state.foods.find((item) => item.id === id);
       if (!food || !confirm(`ลบ "${food.name}" ออกจากคลังอาหาร?`)) return;
@@ -1409,39 +1585,103 @@
       render();
     }
 
-    function saveWeightFromForm(form) {
-      const data = Object.fromEntries(new FormData(form).entries());
-      const weightKg = Number(data.weightKg);
-      if (!data.date) return alert("กรุณาเลือกวันที่");
-      if (!Number.isFinite(weightKg) || weightKg <= 0) return alert("น้ำหนักต้องเป็นตัวเลขบวก");
+    function openWeightLog(options = {}) {
+      const editing = options.log || null;
+      const now = new Date();
+      runtime.modal = null;
+      runtime.weightModal = {
+        id: editing ? editing.id : null,
+        date: editing ? editing.date : dateKey(now),
+        time: editing ? (editing.time || timeKey(now)) : timeKey(now),
+        weightKg: editing ? String(editing.weightKg || "") : "",
+        noteType: editing ? normalizeWeightNoteType(editing) : "normal",
+        note: editing ? (editing.note || "") : "",
+        errors: [],
+        shouldFocusWeight: true
+      };
+      renderModal();
+    }
+
+    function closeWeightLog() {
+      runtime.weightModal = null;
+      renderModal();
+    }
+
+    function saveWeightFromModal() {
+      const modal = runtime.weightModal;
+      if (!modal) return;
+      const errors = [];
+      const weightKg = Number(modal.weightKg);
+      if (!modal.date) errors.push("กรุณาเลือกวันที่");
+      if (!modal.time) errors.push("กรุณาเลือกเวลา");
+      if (!Number.isFinite(weightKg) || weightKg <= 0) errors.push("น้ำหนักต้องเป็นตัวเลขบวก");
+      if (!weightNoteLabels[modal.noteType]) errors.push("กรุณาเลือก note");
+
+      if (errors.length) {
+        modal.errors = errors;
+        renderModal();
+        return;
+      }
 
       const now = nowIso();
+      const existing = modal.id ? state.weightLogs.find((log) => log.id === modal.id) : null;
       const payload = {
-        id: runtime.weightEditId || uid("weight"),
-        date: data.date,
+        id: modal.id || uid("weight"),
+        date: modal.date,
+        time: modal.time,
         weightKg,
-        note: String(data.note || "").trim(),
-        createdAt: runtime.weightEditId ? (state.weightLogs.find((log) => log.id === runtime.weightEditId)?.createdAt || now) : now,
+        noteType: modal.noteType,
+        note: String(modal.note || "").trim(),
+        createdAt: existing?.createdAt || now,
         updatedAt: now
       };
 
       const existingIndex = state.weightLogs.findIndex((log) => log.id === payload.id);
       if (existingIndex >= 0) state.weightLogs[existingIndex] = payload;
       else state.weightLogs.push(payload);
-      runtime.weightEditId = null;
       saveState();
+      closeWeightLog();
       render();
     }
 
     function editWeight(id) {
-      runtime.weightEditId = id;
-      render();
+      const log = state.weightLogs.find((item) => item.id === id);
+      if (log) openWeightLog({ log });
     }
 
     function deleteWeight(id) {
       if (!confirm("ลบข้อมูลน้ำหนักนี้?")) return;
       state.weightLogs = state.weightLogs.filter((log) => log.id !== id);
-      if (runtime.weightEditId === id) runtime.weightEditId = null;
+      saveState();
+      render();
+    }
+
+    function saveExerciseFromForm(form) {
+      const data = Object.fromEntries(new FormData(form).entries());
+      const activityName = String(data.activityName || "").trim();
+      const caloriesBurned = Number(data.caloriesBurned);
+      if (!data.date) return alert("กรุณาเลือกวันที่");
+      if (!activityName) return alert("กรุณากรอกกิจกรรม");
+      if (!Number.isFinite(caloriesBurned) || caloriesBurned <= 0) return alert("แคลที่เบิร์นต้องเป็นตัวเลขบวก");
+
+      const now = nowIso();
+      state.exerciseLogs.push({
+        id: uid("exercise"),
+        date: data.date,
+        time: data.time || timeKey(new Date()),
+        activityName,
+        caloriesBurned,
+        note: String(data.note || "").trim(),
+        createdAt: now,
+        updatedAt: now
+      });
+      saveState();
+      render();
+    }
+
+    function deleteExercise(id) {
+      if (!confirm("ลบรายการออกกำลังกายนี้?")) return;
+      state.exerciseLogs = state.exerciseLogs.filter((log) => log.id !== id);
       saveState();
       render();
     }
@@ -1454,7 +1694,9 @@
       runtime.selectedDate = dateKey(new Date());
       runtime.calendarMonth = monthKey(new Date());
       runtime.summaryMonth = monthKey(new Date());
-      runtime.weightEditId = null;
+      runtime.historyEditMode = false;
+      runtime.modal = null;
+      runtime.weightModal = null;
       applyTheme();
       saveState();
       render();
@@ -1565,11 +1807,34 @@
       return renderHome();
     }
 
+    function renderMonthDashboard(month) {
+      const dashboard = monthDashboardStats(month);
+      return `
+        <div class="stats three">
+          <div class="stat-card">
+            <div class="stat-label">เดือนนี้กินไป</div>
+            <div class="stat-value">${dashboard.eaten.toLocaleString()}</div>
+          </div>
+          ${dashboard.hasExercise ? `
+            <div class="stat-card">
+              <div class="stat-label">ออกกำลังกายไป</div>
+              <div class="stat-value">${dashboard.burned.toLocaleString()}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">สุทธิ</div>
+              <div class="stat-value">${dashboard.net.toLocaleString()}</div>
+            </div>
+          ` : ""}
+        </div>
+      `;
+    }
+
     function renderHome() {
       const today = dateKey(new Date());
       const logs = logsForDate(today);
       const total = totalForDate(today);
       const target = targetCalories();
+      const thisMonth = monthKey(new Date());
       const pct = target ? Math.min(100, Math.round((total / target) * 100)) : 0;
       const remaining = target === null
         ? "ตั้งค่าโปรไฟล์เพื่อคำนวณเป้าหมายต่อวัน"
@@ -1592,6 +1857,16 @@
             </div>
             <div class="quick-actions">
               <button class="btn btn-primary" data-action="open-log">+ Add Food</button>
+            </div>
+          </section>
+
+          <section class="band">
+            <div class="band-head">
+              <h2 class="section-title">Dashboard เดือนนี้</h2>
+              <p class="section-note">${formatMonth(thisMonth)}</p>
+            </div>
+            <div class="band-body">
+              ${renderMonthDashboard(thisMonth)}
             </div>
           </section>
 
@@ -1627,11 +1902,13 @@
       `;
     }
 
-    function renderDailyLogList(logs) {
+    function renderDailyLogList(logs, options = {}) {
+      const compact = Boolean(options.compact);
+      const showActions = options.showActions !== false;
       return `
-        <div class="list">
+        <div class="list ${compact ? "compact-list" : ""}">
           ${logs.map((log) => `
-            <article class="item">
+            <article class="item ${compact ? "compact-item" : ""}">
               <div class="item-row">
                 <div>
                   <div class="item-title">${escapeHtml(log.foodName)}</div>
@@ -1641,10 +1918,12 @@
               </div>
               ${log.addons && log.addons.length ? `<div class="item-meta">Add-ons: ${log.addons.map((addon) => `${escapeHtml(addon.name)} (${addon.calories})`).join(", ")}</div>` : ""}
               ${log.note ? `<div class="item-meta">${escapeHtml(log.note)}</div>` : ""}
-              <div class="inline-actions">
-                <button class="btn btn-small" data-action="edit-log" data-log-id="${log.id}">Edit</button>
-                <button class="btn btn-small btn-danger" data-action="delete-log" data-log-id="${log.id}">Delete</button>
-              </div>
+              ${showActions ? `
+                <div class="inline-actions">
+                  <button class="btn btn-small" data-action="edit-log" data-log-id="${log.id}">แก้ไข</button>
+                  <button class="btn btn-small btn-danger" data-action="delete-log" data-log-id="${log.id}">ลบ</button>
+                </div>
+              ` : ""}
             </article>
           `).join("")}
         </div>
@@ -1657,9 +1936,12 @@
       return `
         <div class="history-grid">
           <section class="band">
-            <div class="band-head">
-              <h2 class="section-title">Daily History</h2>
-              <p class="section-note">${formatThaiDate(runtime.selectedDate)}</p>
+            <div class="band-title-row">
+              <div class="band-head">
+                <h2 class="section-title">Daily History</h2>
+                <p class="section-note">${formatThaiDate(runtime.selectedDate)}</p>
+              </div>
+              ${logs.length ? `<button class="btn btn-small" data-action="toggle-history-edit">${runtime.historyEditMode ? "เสร็จ" : "แก้ไข"}</button>` : ""}
             </div>
             <div class="band-body form-grid">
               <div class="two-col">
@@ -1673,7 +1955,7 @@
                 </div>
               </div>
               <button class="btn btn-primary" data-action="open-log-date">+ Add Food</button>
-              ${logs.length ? renderDailyLogList(logs) : `<div class="empty-state">ยังไม่มีรายการอาหารในวันนี้<br>เพิ่มรายการใหม่ได้จากปุ่มด้านบน</div>`}
+              ${logs.length ? renderDailyLogList(logs, { compact: true, showActions: runtime.historyEditMode }) : `<div class="empty-state">ยังไม่มีรายการอาหารในวันนี้<br>เพิ่มรายการใหม่ได้จากปุ่มด้านบน</div>`}
             </div>
           </section>
           <section class="band">
@@ -1729,6 +2011,11 @@
                 <label for="summaryMonth">Month</label>
                 <input id="summaryMonth" type="month" value="${runtime.summaryMonth}" data-action="summary-month">
               </div>
+              <div>
+                <h3 class="section-title">Dashboard เดือนนี้</h3>
+                <p class="section-note">${formatMonth(runtime.summaryMonth)}</p>
+              </div>
+              ${renderMonthDashboard(runtime.summaryMonth)}
               <div class="stats three">
                 <div class="stat-card">
                   <div class="stat-label">Total</div>
@@ -1768,6 +2055,76 @@
               ${stats.loggedDays ? renderCalorieChart(stats) : `<div class="empty-state">ยังไม่มีข้อมูลเพียงพอสำหรับสรุป<br>เริ่มบันทึกอาหารเพื่อดูภาพรวม</div>`}
             </div>
           </section>
+          <section class="band span-2">
+            <div class="band-head">
+              <h2 class="section-title">Exercise Burn</h2>
+              <p class="section-note">จดกิจกรรมและแคลที่เบิร์นเอง ใช้หรือไม่ใช้ก็ได้</p>
+            </div>
+            <div class="band-body form-grid">
+              ${renderExerciseForm()}
+              ${renderExerciseList(runtime.summaryMonth)}
+            </div>
+          </section>
+        </div>
+      `;
+    }
+
+    function renderExerciseForm() {
+      return `
+        <form id="exerciseForm" class="form-grid">
+          <div class="two-col">
+            <div class="field">
+              <label for="exerciseDate">Date</label>
+              <input id="exerciseDate" name="date" type="date" value="${dateKey(new Date())}" required>
+            </div>
+            <div class="field">
+              <label for="exerciseTime">Time</label>
+              <input id="exerciseTime" name="time" type="time" value="${timeKey(new Date())}">
+            </div>
+          </div>
+          <div class="two-col">
+            <div class="field">
+              <label for="activityName">Activity</label>
+              <input id="activityName" name="activityName" list="activityOptions" placeholder="เช่น วิ่ง, ปั่นจักรยาน" required>
+              <datalist id="activityOptions">
+                ${activitySuggestions.map((name) => `<option value="${escapeHtml(name)}"></option>`).join("")}
+              </datalist>
+            </div>
+            <div class="field">
+              <label for="caloriesBurned">Burned kcal</label>
+              <input id="caloriesBurned" name="caloriesBurned" type="number" min="1" inputmode="numeric" placeholder="kcal" required>
+            </div>
+          </div>
+          <div class="field">
+            <label for="exerciseNote">Note</label>
+            <input id="exerciseNote" name="note" placeholder="optional">
+          </div>
+          <button class="btn btn-primary" type="submit">+ Add Exercise</button>
+        </form>
+      `;
+    }
+
+    function renderExerciseList(month) {
+      const logs = exerciseLogsForMonth(month);
+      if (!logs.length) {
+        return `<div class="empty-state">ยังไม่มีข้อมูลออกกำลังกายในเดือนนี้<br>ถ้าไม่ต้องการจด ส่วน dashboard จะใช้เฉพาะแคลที่กินไป</div>`;
+      }
+      return `
+        <div class="list compact-list">
+          ${logs.map((log) => `
+            <article class="item compact-item">
+              <div class="item-row">
+                <div>
+                  <div class="item-title">${escapeHtml(log.activityName)}</div>
+                  <div class="item-meta">${formatThaiDate(log.date)} · ${log.time || "--:--"}${log.note ? ` · ${escapeHtml(log.note)}` : ""}</div>
+                </div>
+                <div class="item-kcal">${log.caloriesBurned} kcal</div>
+              </div>
+              <div class="inline-actions">
+                <button class="btn btn-small btn-danger" data-action="delete-exercise" data-exercise-id="${log.id}">ลบ</button>
+              </div>
+            </article>
+          `).join("")}
         </div>
       `;
     }
@@ -1791,12 +2148,11 @@
     }
 
     function renderWeight() {
-      const sorted = [...state.weightLogs].sort((a, b) => b.date.localeCompare(a.date));
-      const chartLogs = [...state.weightLogs].sort((a, b) => a.date.localeCompare(b.date));
+      const sorted = sortedWeightLogs(true);
+      const chartLogs = sortedWeightLogs(false);
       const first = chartLogs[0] || null;
       const latest = chartLogs[chartLogs.length - 1] || null;
       const change = first && latest ? (latest.weightKg - first.weightKg) : 0;
-      const editing = runtime.weightEditId ? state.weightLogs.find((log) => log.id === runtime.weightEditId) : null;
       return `
         <div class="weight-grid">
           <section class="band">
@@ -1819,26 +2175,7 @@
                   <div class="stat-value">${latest && first ? `${change > 0 ? "+" : ""}${change.toFixed(1)} kg` : "-"}</div>
                 </div>
               </div>
-              <form id="weightForm" class="form-grid">
-                <div class="two-col">
-                  <div class="field">
-                    <label for="weightDate">Date</label>
-                    <input id="weightDate" name="date" type="date" required value="${editing ? editing.date : dateKey(new Date())}">
-                  </div>
-                  <div class="field">
-                    <label for="weightKg">Weight (kg)</label>
-                    <input id="weightKg" name="weightKg" inputmode="decimal" type="number" min="1" step="0.1" required value="${editing ? editing.weightKg : ""}" placeholder="เช่น 72.5">
-                  </div>
-                </div>
-                <div class="field">
-                  <label for="weightNote">Note</label>
-                  <input id="weightNote" name="note" value="${editing ? escapeHtml(editing.note || "") : ""}" placeholder="optional">
-                </div>
-                <div class="inline-actions">
-                  ${editing ? `<button class="btn btn-small" type="button" data-action="cancel-weight-edit">Cancel</button>` : ""}
-                  <button class="btn btn-primary" type="submit">${editing ? "Save Weight" : "+ Add Weight"}</button>
-                </div>
-              </form>
+              <button class="btn btn-primary" data-action="open-weight">+ บันทึกน้ำหนัก</button>
             </div>
           </section>
           <section class="band">
@@ -1862,7 +2199,7 @@
                       <div class="item-row">
                         <div>
                           <div class="item-title">${formatThaiDate(log.date)}</div>
-                          <div class="item-meta">${escapeHtml(log.note || "")}</div>
+                          <div class="item-meta">${log.time || "--:--"} · ${escapeHtml(formatWeightNote(log))}</div>
                         </div>
                         <div class="item-kcal">${log.weightKg} kg</div>
                       </div>
@@ -1921,11 +2258,35 @@
       };
       return `
         <div class="profile-grid">
-          <section class="band">
+          <section class="band span-2">
             <div class="band-head">
-              <h2 class="section-title">Profile & TDEE</h2>
-              <p class="section-note">คำนวณ BMR, TDEE และเป้าหมาย kcal ต่อวัน</p>
+              <h2 class="section-title">Calculated Target</h2>
+              <p class="section-note">ใช้สูตร Mifflin-St Jeor</p>
             </div>
+            <div class="band-body">
+              <div class="stats">
+                <div class="stat-card">
+                  <div class="stat-label">BMR</div>
+                  <div class="stat-value">${profile.bmr ? profile.bmr.toLocaleString() : "-"}</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">TDEE</div>
+                  <div class="stat-value">${profile.tdee ? profile.tdee.toLocaleString() : "-"}</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">Daily target</div>
+                  <div class="stat-value">${profile.dailyCalorieTarget ? profile.dailyCalorieTarget.toLocaleString() : "-"}</div>
+                </div>
+                <div class="stat-card">
+                  <div class="stat-label">Goal</div>
+                  <div class="stat-value">${goalLabels[profile.goal] || "-"}</div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <details class="band span-2 collapsible">
+            <summary>Profile & TDEE Settings</summary>
             <div class="band-body">
               <form id="profileForm" class="form-grid">
                 <div id="profileErrors" class="error-box"></div>
@@ -1967,52 +2328,26 @@
                 <button class="btn btn-primary" type="submit">Save Profile</button>
               </form>
             </div>
-          </section>
+          </details>
 
-          <section class="band">
-            <div class="band-head">
-              <h2 class="section-title">Calculated Target</h2>
-              <p class="section-note">ใช้สูตร Mifflin-St Jeor</p>
-            </div>
-            <div class="band-body">
-              <div class="stats">
-                <div class="stat-card">
-                  <div class="stat-label">BMR</div>
-                  <div class="stat-value">${profile.bmr ? profile.bmr.toLocaleString() : "-"}</div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label">TDEE</div>
-                  <div class="stat-value">${profile.tdee ? profile.tdee.toLocaleString() : "-"}</div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label">Daily target</div>
-                  <div class="stat-value">${profile.dailyCalorieTarget ? profile.dailyCalorieTarget.toLocaleString() : "-"}</div>
-                </div>
-                <div class="stat-card">
-                  <div class="stat-label">Goal</div>
-                  <div class="stat-value">${goalLabels[profile.goal] || "-"}</div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section class="band span-2">
-            <div class="band-head">
-              <h2 class="section-title">Food Library</h2>
-              <p class="section-note">Starter foods มีเฉพาะชื่อ ไม่มี kcal จนกว่าคุณจะกรอกเอง</p>
-            </div>
+          <details class="band span-2 collapsible">
+            <summary>Food Library</summary>
             <div class="band-body form-grid">
+              <p class="section-note">Starter foods มีเฉพาะชื่อ ไม่มี kcal จนกว่าคุณจะกรอกเอง</p>
+              <div class="two-col">
+                <input id="newFoodName" placeholder="Food name">
+                <input id="newFoodCalories" type="number" min="1" inputmode="numeric" placeholder="kcal optional">
+              </div>
+              <button class="btn" data-action="add-food-library">+ Add Food</button>
               <input id="foodFilter" value="${escapeHtml(runtime.foodFilter)}" placeholder="Search food">
               ${renderFoodLibrary()}
             </div>
-          </section>
+          </details>
 
-          <section class="band span-2">
-            <div class="band-head">
-              <h2 class="section-title">Food Add-ons</h2>
-              <p class="section-note">สร้างส่วนเพิ่มที่ใช้บ่อย เช่น ไข่ดาว เพิ่มข้าว</p>
-            </div>
+          <details class="band span-2 collapsible">
+            <summary>Food Add-ons</summary>
             <div class="band-body form-grid">
+              <p class="section-note">สร้างส่วนเพิ่มที่ใช้บ่อย เช่น ไข่ดาว เพิ่มข้าว</p>
               <div class="two-col">
                 <input id="newAddonName" placeholder="Add-on name">
                 <input id="newAddonCalories" type="number" min="1" inputmode="numeric" placeholder="kcal optional">
@@ -2022,7 +2357,7 @@
               ${renderAddonLibrary()}
               <button class="btn btn-danger" data-action="reset-data">Reset local data</button>
             </div>
-          </section>
+          </details>
         </div>
       `;
     }
@@ -2086,10 +2421,15 @@
     function renderModal() {
       const root = document.getElementById("modalRoot");
       const modal = runtime.modal;
-      if (!modal) {
+      if (!modal && !runtime.weightModal) {
         root.classList.remove("open");
         root.setAttribute("aria-hidden", "true");
         root.innerHTML = "";
+        return;
+      }
+
+      if (runtime.weightModal) {
+        renderWeightModal(root);
         return;
       }
 
@@ -2172,6 +2512,65 @@
       }
     }
 
+    function renderWeightModal(root) {
+      const modal = runtime.weightModal;
+      root.classList.add("open");
+      root.setAttribute("aria-hidden", "false");
+      root.innerHTML = `
+        <section class="modal" role="dialog" aria-modal="true" aria-labelledby="weightLogTitle">
+          <header class="modal-header">
+            <div>
+              <h2 id="weightLogTitle" class="section-title">${modal.id ? "แก้ไขน้ำหนัก" : "บันทึกน้ำหนัก"}</h2>
+              <p class="section-note">${modal.date ? formatThaiDate(modal.date) : ""} · ${modal.time || ""}</p>
+            </div>
+            <button class="btn btn-small icon-btn" data-action="close-weight" aria-label="Close">×</button>
+          </header>
+          <div class="modal-body">
+            <div class="form-grid">
+              <div class="error-box ${modal.errors.length ? "show" : ""}">${modal.errors.map(escapeHtml).join("<br>")}</div>
+              <div class="two-col">
+                <div class="field">
+                  <label for="weightModalDate">Date</label>
+                  <input id="weightModalDate" type="date" value="${modal.date}" data-weight-modal-field="date">
+                </div>
+                <div class="field">
+                  <label for="weightModalTime">Time</label>
+                  <input id="weightModalTime" type="time" value="${modal.time}" data-weight-modal-field="time">
+                </div>
+              </div>
+              <div class="field">
+                <label for="weightModalKg">Weight (kg)</label>
+                <input id="weightModalKg" type="number" min="1" step="0.1" inputmode="decimal" value="${escapeHtml(modal.weightKg)}" data-weight-modal-field="weightKg" placeholder="เช่น 72.5">
+              </div>
+              <div class="field">
+                <label for="weightModalNoteType">Note</label>
+                <select id="weightModalNoteType" data-weight-modal-field="noteType">
+                  ${Object.entries(weightNoteLabels).map(([key, label]) => `<option value="${key}" ${modal.noteType === key ? "selected" : ""}>${label}</option>`).join("")}
+                </select>
+              </div>
+              <div class="field">
+                <label for="weightModalNote">รายละเอียดเพิ่มเติม</label>
+                <input id="weightModalNote" value="${escapeHtml(modal.note)}" data-weight-modal-field="note" placeholder="optional">
+              </div>
+            </div>
+          </div>
+          <footer class="modal-footer">
+            <div class="item-kcal">${Number(modal.weightKg) > 0 ? `${Number(modal.weightKg)} kg` : "kg"}</div>
+            <div class="inline-actions">
+              <button class="btn" data-action="close-weight">Cancel</button>
+              <button class="btn btn-primary" data-action="save-weight">Save</button>
+            </div>
+          </footer>
+        </section>
+      `;
+      bindWeightModalEvents();
+      const weightInput = document.getElementById("weightModalKg");
+      if (weightInput && modal.shouldFocusWeight) {
+        weightInput.focus();
+        modal.shouldFocusWeight = false;
+      }
+    }
+
     function renderAddonPickerRow(addon) {
       const selected = runtime.modal.selectedAddons.find((item) => item.addonId === addon.id);
       const calories = selected ? selected.calories : addon.calories;
@@ -2210,6 +2609,10 @@
           if (action === "toggle-theme") setTheme(state.settings.theme === "dark" ? "light" : "dark");
           if (action === "open-log") openQuickLog();
           if (action === "open-log-date") openQuickLog({ date: runtime.selectedDate });
+          if (action === "toggle-history-edit") {
+            runtime.historyEditMode = !runtime.historyEditMode;
+            render();
+          }
           if (action === "quick-food") {
             const food = state.foods.find((item) => item.id === el.dataset.foodId);
             if (food) openQuickLog({ food });
@@ -2228,15 +2631,14 @@
           }
           if (action === "save-food") saveFoodRow(el.dataset.foodId);
           if (action === "delete-food") deleteFood(el.dataset.foodId);
+          if (action === "add-food-library") addCustomFood();
           if (action === "add-addon") addCustomAddon();
           if (action === "save-addon") saveAddonRow(el.dataset.addonId);
           if (action === "delete-addon") deleteAddon(el.dataset.addonId);
+          if (action === "open-weight") openWeightLog();
           if (action === "edit-weight") editWeight(el.dataset.weightId);
           if (action === "delete-weight") deleteWeight(el.dataset.weightId);
-          if (action === "cancel-weight-edit") {
-            runtime.weightEditId = null;
-            render();
-          }
+          if (action === "delete-exercise") deleteExercise(el.dataset.exerciseId);
           if (action === "reset-data") resetAllData();
           event.preventDefault();
         });
@@ -2306,11 +2708,11 @@
         });
       }
 
-      const weightForm = document.getElementById("weightForm");
-      if (weightForm) {
-        weightForm.addEventListener("submit", (event) => {
+      const exerciseForm = document.getElementById("exerciseForm");
+      if (exerciseForm) {
+        exerciseForm.addEventListener("submit", (event) => {
           event.preventDefault();
-          saveWeightFromForm(weightForm);
+          saveExerciseFromForm(exerciseForm);
         });
       }
     }
@@ -2385,6 +2787,36 @@
       });
     }
 
+    function bindWeightModalEvents() {
+      const root = document.getElementById("modalRoot");
+      root.querySelectorAll("[data-action='close-weight']").forEach((button) => button.addEventListener("click", closeWeightLog));
+      const save = root.querySelector("[data-action='save-weight']");
+      if (save) save.addEventListener("click", saveWeightFromModal);
+
+      root.querySelectorAll("[data-weight-modal-field]").forEach((field) => {
+        field.addEventListener("input", () => {
+          runtime.weightModal[field.dataset.weightModalField] = field.value;
+          updateWeightModalSummary();
+        });
+        field.addEventListener("change", () => {
+          runtime.weightModal[field.dataset.weightModalField] = field.value;
+          updateWeightModalSummary();
+        });
+      });
+    }
+
+    function updateWeightModalSummary() {
+      if (!runtime.weightModal) return;
+      const root = document.getElementById("modalRoot");
+      const note = root.querySelector(".modal-header .section-note");
+      const total = root.querySelector(".modal-footer .item-kcal");
+      if (note) note.textContent = `${runtime.weightModal.date ? formatThaiDate(runtime.weightModal.date) : ""} · ${runtime.weightModal.time || ""}`;
+      if (total) {
+        const weight = Number(runtime.weightModal.weightKg);
+        total.textContent = weight > 0 ? `${weight} kg` : "kg";
+      }
+    }
+
     function updateSuggestionList(query) {
       const container = document.getElementById("foodSuggestions");
       if (!container) return;
@@ -2428,6 +2860,7 @@
 
     document.addEventListener("keydown", (event) => {
       if (event.key === "Escape" && runtime.modal) closeQuickLog();
+      if (event.key === "Escape" && runtime.weightModal) closeWeightLog();
     });
 
     applyTheme();
