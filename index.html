@@ -2377,6 +2377,10 @@
           event.preventDefault();
           event.stopPropagation();
         });
+        button.addEventListener("touchend", (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+        }, { passive: false });
         button.addEventListener("click", (event) => {
           event.preventDefault();
           event.stopPropagation();
