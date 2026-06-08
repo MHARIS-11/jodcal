@@ -2195,6 +2195,7 @@
         expenses: []
       },
       calcEl: null,
+      calcCloseTimer: null,
       blockSubmitUntil: 0,
       timeTargetEl: null,
       timePicker: {
@@ -2362,6 +2363,9 @@
       els.calcOverlay.addEventListener("click", (event) => {
         if (event.target === els.calcOverlay) closeCalc();
       });
+      document.addEventListener("click", shieldPostCalcEvent, true);
+      document.addEventListener("pointerup", shieldPostCalcEvent, true);
+      document.addEventListener("touchend", shieldPostCalcEvent, { capture: true, passive: false });
 
       els.timeOverlay.addEventListener("click", (event) => {
         if (event.target === els.timeOverlay) closeTimePicker();
@@ -2621,6 +2625,10 @@
     }
 
     function openCalc(input) {
+      if (state.calcCloseTimer) {
+        clearTimeout(state.calcCloseTimer);
+        state.calcCloseTimer = null;
+      }
       state.calcEl = input;
       els.calcDisplay.value = calcInitialValue(input.value);
       els.calcPreview.textContent = "";
@@ -2639,6 +2647,10 @@
     }
 
     function closeCalc() {
+      if (state.calcCloseTimer) {
+        clearTimeout(state.calcCloseTimer);
+        state.calcCloseTimer = null;
+      }
       els.calcOverlay.classList.remove("open");
       state.calcEl = null;
       els.calcPreview.classList.remove("err");
@@ -2674,8 +2686,19 @@
         state.calcEl.dispatchEvent(new Event("input", { bubbles: true }));
         state.calcEl.dispatchEvent(new Event("change", { bubbles: true }));
       }
-      state.blockSubmitUntil = Date.now() + 900;
-      closeCalc();
+      armPostCalcShield();
+      state.calcCloseTimer = setTimeout(closeCalc, 180);
+    }
+
+    function armPostCalcShield(duration = 900) {
+      state.blockSubmitUntil = Date.now() + duration;
+    }
+
+    function shieldPostCalcEvent(event) {
+      if (Date.now() >= state.blockSubmitUntil) return;
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
     }
 
     function updateCalcPreview() {
