@@ -1543,6 +1543,18 @@
       });
     }
 
+    function findFoodByExactName(name) {
+      const normalized = String(name || "").trim().toLowerCase();
+      if (!normalized) return null;
+      return state.foods.find((food) => food.name.trim().toLowerCase() === normalized) || null;
+    }
+
+    function renderSetFoodMemoryOptions() {
+      return sortedFoodSuggestions("", Math.max(state.foods.length, 20)).map((food) => `
+        <option value="${escapeHtml(food.name)}" label="${food.defaultCalories === null ? "ยังไม่มี kcal" : `${food.defaultCalories} kcal`}"></option>
+      `).join("");
+    }
+
     function openQuickLog(options = {}) {
       const editing = options.log || null;
       const now = new Date();
@@ -2838,6 +2850,9 @@
           <div class="food-set">
             ${modal.setItems.map((item, index) => renderSetFoodRow(item, index)).join("")}
           </div>
+          <datalist id="setFoodMemoryOptions">
+            ${renderSetFoodMemoryOptions()}
+          </datalist>
         </div>
         <button class="btn" type="button" data-action="add-set-row">+ เพิ่มแถว</button>
       `;
@@ -2846,7 +2861,7 @@
     function renderSetFoodRow(item, index) {
       return `
         <div class="set-row" data-set-row="${item.id}">
-          <input data-set-field="foodName" data-set-index="${index}" value="${escapeHtml(item.foodName)}" placeholder="ชื่ออาหาร">
+          <input data-set-field="foodName" data-set-index="${index}" list="setFoodMemoryOptions" value="${escapeHtml(item.foodName)}" placeholder="ชื่ออาหาร">
           <input data-set-field="calories" data-set-index="${index}" type="number" min="1" inputmode="numeric" value="${escapeHtml(item.calories)}" placeholder="kcal">
           <input data-set-field="quantity" data-set-index="${index}" type="number" min="0.1" step="0.1" inputmode="decimal" value="${escapeHtml(item.quantity)}" placeholder="จำนวน">
           <div class="set-subtotal">${setItemSubtotal(item).toLocaleString()} kcal</div>
@@ -3100,6 +3115,7 @@
           const index = Number(field.dataset.setIndex);
           const key = field.dataset.setField;
           if (runtime.modal.setItems[index]) runtime.modal.setItems[index][key] = field.value;
+          if (key === "foodName") applySetFoodMemory(index, field);
           updateModalTotalText();
           updateSetSubtotals();
         });
@@ -3241,6 +3257,18 @@
         const subtotal = row.querySelector(".set-subtotal");
         if (item && subtotal) subtotal.textContent = `${setItemSubtotal(item).toLocaleString()} kcal`;
       });
+    }
+
+    function applySetFoodMemory(index, input) {
+      const item = runtime.modal?.setItems[index];
+      if (!item) return;
+      const food = findFoodByExactName(item.foodName);
+      if (!food || food.defaultCalories === null) return;
+
+      item.calories = String(food.defaultCalories);
+      const row = input.closest("[data-set-row]");
+      const caloriesInput = row?.querySelector('[data-set-field="calories"]');
+      if (caloriesInput) caloriesInput.value = item.calories;
     }
 
     function moveCalendar(delta) {
