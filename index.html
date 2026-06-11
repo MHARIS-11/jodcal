@@ -555,6 +555,52 @@
       border: 1px solid var(--line);
     }
 
+    .segmented.two {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .food-set {
+      display: grid;
+      gap: 10px;
+    }
+
+    .set-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(82px, 0.55fr) minmax(72px, 0.42fr) minmax(76px, 0.42fr) 38px;
+      gap: 8px;
+      align-items: end;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: var(--surface-2);
+    }
+
+    .set-row input {
+      min-height: 40px;
+      padding: 8px 9px;
+    }
+
+    .set-subtotal {
+      min-height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      color: var(--accent);
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 620px) {
+      .set-row {
+        grid-template-columns: minmax(0, 1fr) minmax(86px, 0.5fr) minmax(72px, 0.36fr) 38px;
+      }
+
+      .set-subtotal {
+        grid-column: 1 / -1;
+        justify-content: flex-start;
+      }
+    }
+
     .pill-row {
       display: flex;
       gap: 8px;
@@ -834,6 +880,7 @@
     .day-dot.under { background: var(--warning); }
 
     .chart {
+      position: relative;
       width: 100%;
       min-height: 190px;
       display: flex;
@@ -844,6 +891,58 @@
       background: var(--surface-2);
       border-radius: var(--radius);
       overflow-x: auto;
+    }
+
+    .chart-line {
+      position: absolute;
+      left: 12px;
+      right: 12px;
+      height: 0;
+      border-top: 2px dashed var(--accent-2);
+      pointer-events: none;
+      z-index: 2;
+    }
+
+    .chart-line.tdee {
+      border-top-style: solid;
+      border-top-color: var(--warning);
+    }
+
+    .chart-line-label {
+      position: absolute;
+      right: 0;
+      top: -18px;
+      padding: 2px 6px;
+      border-radius: 999px;
+      background: var(--surface);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 0.68rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .chart-legend {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 750;
+    }
+
+    .legend-mark {
+      width: 18px;
+      height: 0;
+      display: inline-block;
+      border-top: 2px dashed var(--accent-2);
+      transform: translateY(-3px);
+    }
+
+    .legend-mark.tdee {
+      border-top-style: solid;
+      border-top-color: var(--warning);
     }
 
     .bar-wrap {
@@ -857,10 +956,58 @@
     }
 
     .bar {
+      position: relative;
+      z-index: 3;
       width: 100%;
       min-height: 2px;
       border-radius: 5px 5px 2px 2px;
       background: var(--accent);
+    }
+
+    .exercise-chart {
+      display: grid;
+      gap: 10px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      border-radius: var(--radius);
+    }
+
+    .exercise-bar-row {
+      display: grid;
+      grid-template-columns: minmax(92px, 0.8fr) minmax(0, 1fr) auto;
+      gap: 10px;
+      align-items: center;
+      font-size: 0.86rem;
+    }
+
+    .exercise-bar-label {
+      color: var(--text);
+      font-weight: 750;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .exercise-bar-track {
+      height: 12px;
+      border-radius: 999px;
+      background: var(--surface-3);
+      overflow: hidden;
+      border: 1px solid var(--line);
+    }
+
+    .exercise-bar {
+      height: 100%;
+      min-width: 2px;
+      border-radius: inherit;
+      background: linear-gradient(90deg, var(--accent-2), var(--accent));
+    }
+
+    .exercise-bar-value {
+      color: var(--accent);
+      font-weight: 800;
+      white-space: nowrap;
     }
 
     .bar.over { background: var(--danger); }
@@ -1348,11 +1495,61 @@
       });
     }
 
+    function blankSetItem() {
+      return {
+        id: uid("setitem"),
+        foodName: "",
+        calories: "",
+        quantity: 1
+      };
+    }
+
+    function normalizeSetItems(items) {
+      return (items || [])
+        .map((item) => {
+          const foodName = String(item.foodName || "").trim();
+          const calories = Number(item.calories);
+          const quantity = Number(item.quantity);
+          return {
+            id: item.id || uid("setitem"),
+            foodName,
+            calories,
+            quantity
+          };
+        })
+        .filter((item) => item.foodName || Number.isFinite(item.calories) || Number.isFinite(item.quantity));
+    }
+
+    function setItemSubtotal(item) {
+      const calories = Number(item.calories);
+      const quantity = Number(item.quantity);
+      if (!Number.isFinite(calories) || !Number.isFinite(quantity) || calories <= 0 || quantity <= 0) return 0;
+      return calories * quantity;
+    }
+
+    function setTotalCalories(items) {
+      return (items || []).reduce((sum, item) => sum + setItemSubtotal(item), 0);
+    }
+
+    function setDisplayName(items) {
+      const names = (items || []).map((item) => item.foodName).filter(Boolean);
+      if (!names.length) return "เซ็ตอาหาร";
+      return `เซ็ตอาหาร: ${names.slice(0, 3).join(" + ")}${names.length > 3 ? " +" : ""}`;
+    }
+
+    function upsertSetFoods(items) {
+      items.forEach((item) => {
+        upsertFoodFromLog(null, item.foodName, item.calories);
+      });
+    }
+
     function openQuickLog(options = {}) {
       const editing = options.log || null;
       const now = new Date();
+      const editingSet = editing && editing.logType === "set";
       runtime.modal = {
         id: editing ? editing.id : null,
+        mode: editingSet ? "set" : "quick",
         date: editing ? editing.date : (options.date || dateKey(now)),
         time: editing ? editing.time : timeKey(now),
         mealPeriod: editing ? editing.mealPeriod : inferMealPeriod(timeKey(now)),
@@ -1360,6 +1557,7 @@
         foodName: editing ? editing.foodName : (options.food ? options.food.name : ""),
         baseCalories: editing ? String(editing.baseCalories || "") : (options.food && options.food.defaultCalories !== null ? String(options.food.defaultCalories) : ""),
         selectedAddons: editing ? [...(editing.addons || [])] : [],
+        setItems: editingSet ? (editing.setItems || []).map((item) => ({ ...item, id: item.id || uid("setitem") })) : [blankSetItem(), blankSetItem()],
         note: editing ? (editing.note || "") : "",
         errors: [],
         shouldFocusFood: true
@@ -1383,6 +1581,7 @@
     }
 
     function modalTotalCalories() {
+      if (runtime.modal?.mode === "set") return setTotalCalories(runtime.modal.setItems);
       return modalBaseCalories() + selectedAddonTotal();
     }
 
@@ -1390,6 +1589,10 @@
       const modal = runtime.modal;
       if (!modal) return;
       const errors = [];
+      if (modal.mode === "set") {
+        saveSetMealFromModal(modal);
+        return;
+      }
       const foodName = modal.foodName.trim();
       const baseCalories = Number(modal.baseCalories);
 
@@ -1429,6 +1632,60 @@
         baseCalories: Number(baseCalories),
         addons: normalizedAddons,
         totalCalories: Number(baseCalories) + normalizedAddons.reduce((sum, addon) => sum + Number(addon.calories || 0), 0),
+        note: modal.note.trim(),
+        createdAt: modal.id ? (state.mealLogs.find((log) => log.id === modal.id)?.createdAt || now) : now,
+        updatedAt: now
+      };
+
+      const existingIndex = state.mealLogs.findIndex((log) => log.id === payload.id);
+      if (existingIndex >= 0) state.mealLogs[existingIndex] = payload;
+      else state.mealLogs.push(payload);
+
+      runtime.selectedDate = payload.date;
+      saveState();
+      closeQuickLog();
+      render();
+    }
+
+    function saveSetMealFromModal(modal) {
+      const errors = [];
+      const items = normalizeSetItems(modal.setItems);
+      if (!modal.date) errors.push("กรุณาเลือกวันที่");
+      if (!modal.time) errors.push("กรุณาเลือกเวลา");
+      if (!items.length) errors.push("กรุณาเพิ่มอาหารอย่างน้อย 1 แถว");
+      items.forEach((item, index) => {
+        if (!item.foodName) errors.push(`แถวที่ ${index + 1}: กรุณากรอกชื่ออาหาร`);
+        if (!Number.isFinite(item.calories) || item.calories <= 0) errors.push(`แถวที่ ${index + 1}: kcal ต้องเป็นตัวเลขบวก`);
+        if (!Number.isFinite(item.quantity) || item.quantity <= 0) errors.push(`แถวที่ ${index + 1}: จำนวนต้องเป็นตัวเลขบวก`);
+      });
+
+      if (errors.length) {
+        modal.errors = errors;
+        renderModal();
+        return;
+      }
+
+      upsertSetFoods(items);
+      const now = nowIso();
+      const totalCalories = setTotalCalories(items);
+      const payload = {
+        id: modal.id || uid("meal"),
+        logType: "set",
+        date: modal.date,
+        time: modal.time,
+        mealPeriod: modal.mealPeriod || inferMealPeriod(modal.time),
+        foodId: null,
+        foodName: setDisplayName(items),
+        baseCalories: totalCalories,
+        addons: [],
+        setItems: items.map((item) => ({
+          id: item.id,
+          foodName: item.foodName,
+          calories: Number(item.calories),
+          quantity: Number(item.quantity),
+          subtotal: setItemSubtotal(item)
+        })),
+        totalCalories,
         note: modal.note.trim(),
         createdAt: modal.id ? (state.mealLogs.find((log) => log.id === modal.id)?.createdAt || now) : now,
         updatedAt: now
@@ -1917,6 +2174,7 @@
                 <div class="item-kcal">${log.totalCalories} kcal</div>
               </div>
               ${log.addons && log.addons.length ? `<div class="item-meta">Add-ons: ${log.addons.map((addon) => `${escapeHtml(addon.name)} (${addon.calories})`).join(", ")}</div>` : ""}
+              ${log.logType === "set" && log.setItems?.length ? `<div class="item-meta">Set: ${log.setItems.map((item) => `${escapeHtml(item.foodName)} ${item.calories} x ${item.quantity}`).join(" · ")}</div>` : ""}
               ${log.note ? `<div class="item-meta">${escapeHtml(log.note)}</div>` : ""}
               ${showActions ? `
                 <div class="inline-actions">
@@ -2110,6 +2368,7 @@
         return `<div class="empty-state">ยังไม่มีข้อมูลออกกำลังกายในเดือนนี้<br>ถ้าไม่ต้องการจด ส่วน dashboard จะใช้เฉพาะแคลที่กินไป</div>`;
       }
       return `
+        ${renderExerciseChart(logs)}
         <div class="list compact-list">
           ${logs.map((log) => `
             <article class="item compact-item">
@@ -2129,10 +2388,42 @@
       `;
     }
 
+    function renderExerciseChart(logs) {
+      const grouped = logs.reduce((map, log) => {
+        const name = log.activityName || "Activity";
+        map[name] = (map[name] || 0) + Number(log.caloriesBurned || 0);
+        return map;
+      }, {});
+      const rows = Object.entries(grouped)
+        .map(([name, total]) => ({ name, total }))
+        .sort((a, b) => b.total - a.total)
+        .slice(0, 6);
+      const max = Math.max(...rows.map((row) => row.total), 1);
+      return `
+        <div class="exercise-chart" aria-label="Exercise burn chart">
+          ${rows.map((row) => `
+            <div class="exercise-bar-row">
+              <div class="exercise-bar-label" title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</div>
+              <div class="exercise-bar-track">
+                <div class="exercise-bar" style="width:${Math.max(3, Math.round((row.total / max) * 100))}%"></div>
+              </div>
+              <div class="exercise-bar-value">${row.total.toLocaleString()}</div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
     function renderCalorieChart(stats) {
-      const max = Math.max(...stats.totals.map((item) => item.total), targetCalories() || 0, 1);
+      const target = targetCalories();
+      const tdee = state.profile?.tdee || null;
+      const max = Math.max(...stats.totals.map((item) => item.total), target || 0, tdee || 0, 1);
+      const targetBottom = target ? Math.min(165, Math.max(0, Math.round((target / max) * 160))) : null;
+      const tdeeBottom = tdee ? Math.min(165, Math.max(0, Math.round((tdee / max) * 160))) : null;
       return `
         <div class="chart" aria-label="Daily calorie chart">
+          ${targetBottom !== null ? `<div class="chart-line" style="bottom:${targetBottom + 26}px"><span class="chart-line-label">Daily target ${target}</span></div>` : ""}
+          ${tdeeBottom !== null ? `<div class="chart-line tdee" style="bottom:${tdeeBottom + 26}px"><span class="chart-line-label">TDEE ${tdee}</span></div>` : ""}
           ${stats.totals.map((item, index) => {
             const height = Math.max(2, Math.round((item.total / max) * 150));
             const status = dayStatus(item.day);
@@ -2144,6 +2435,12 @@
             `;
           }).join("")}
         </div>
+        ${(target || tdee) ? `
+          <div class="chart-legend">
+            ${target ? `<span><span class="legend-mark"></span> Daily target</span>` : ""}
+            ${tdee ? `<span><span class="legend-mark tdee"></span> TDEE</span>` : ""}
+          </div>
+        ` : ""}
       `;
     }
 
@@ -2239,6 +2536,13 @@
             }).join("")}
             <text x="9" y="13" fill="var(--muted)" font-size="4">${max.toFixed(1)} kg</text>
             <text x="9" y="96" fill="var(--muted)" font-size="4">${min.toFixed(1)} kg</text>
+            ${logs.map((log, index) => {
+              const shouldShow = logs.length <= 3 || index === 0 || index === logs.length - 1 || index === Math.floor((logs.length - 1) / 2);
+              if (!shouldShow) return "";
+              const point = points.split(" ")[index].split(",");
+              const label = parseDateKey(log.date).toLocaleDateString("th-TH", { day: "numeric", month: "short" });
+              return `<text x="${point[0]}" y="93" text-anchor="middle" fill="var(--muted)" font-size="3.3">${label}</text>`;
+            }).join("")}
           </svg>
         </div>
       `;
@@ -2435,13 +2739,12 @@
 
       root.classList.add("open");
       root.setAttribute("aria-hidden", "false");
-      const suggestions = sortedFoodSuggestions(modal.foodName, modal.foodName ? 6 : 7);
       const total = modalTotalCalories();
       root.innerHTML = `
         <section class="modal" role="dialog" aria-modal="true" aria-labelledby="quickLogTitle">
           <header class="modal-header">
             <div>
-              <h2 id="quickLogTitle" class="section-title">${modal.id ? "Edit Food Log" : "Quick Add Food"}</h2>
+              <h2 id="quickLogTitle" class="section-title">${modal.id ? "Edit Food Log" : "Add Food"}</h2>
               <p class="section-note">${modal.mealPeriod ? mealLabels[modal.mealPeriod] : ""} · Total ${total || 0} kcal</p>
             </div>
             <button class="btn btn-small icon-btn" data-action="close-log" aria-label="Close">×</button>
@@ -2449,6 +2752,13 @@
           <div class="modal-body">
             <div class="form-grid">
               <div class="error-box ${modal.errors.length ? "show" : ""}">${modal.errors.map(escapeHtml).join("<br>")}</div>
+              <div class="field">
+                <span class="field-label">Mode</span>
+                <div class="segmented two">
+                  <button type="button" data-action="set-log-mode" data-mode="quick" class="${modal.mode === "quick" ? "active" : ""}">จดเร็ว</button>
+                  <button type="button" data-action="set-log-mode" data-mode="set" class="${modal.mode === "set" ? "active" : ""}">เซ็ตอาหาร</button>
+                </div>
+              </div>
               <div class="two-col">
                 <div class="field">
                   <label for="logDate">Date</label>
@@ -2465,30 +2775,7 @@
                   ${Object.entries(mealLabels).map(([key, label]) => `<option value="${key}" ${modal.mealPeriod === key ? "selected" : ""}>${label}</option>`).join("")}
                 </select>
               </div>
-              <div class="field">
-                <label for="foodName">Food name</label>
-                <input id="foodName" autocomplete="off" value="${escapeHtml(modal.foodName)}" data-modal-field="foodName" placeholder="พิมพ์ชื่ออาหาร">
-                <div class="suggestions" id="foodSuggestions">
-                  ${suggestions.map((food) => `
-                    <button class="suggestion" data-action="pick-food" data-food-id="${food.id}">
-                      <div class="name">${escapeHtml(food.name)}</div>
-                      <div class="meta">${food.defaultCalories === null ? "ยังไม่มี kcal" : `${food.defaultCalories} kcal`} · ใช้ ${food.usageCount || 0} ครั้ง${food.isStarter ? " · starter" : ""}</div>
-                    </button>
-                  `).join("")}
-                </div>
-              </div>
-              <div class="field">
-                <label for="baseCalories">Calories</label>
-                <input id="baseCalories" type="number" min="1" inputmode="numeric" value="${escapeHtml(modal.baseCalories)}" data-modal-field="baseCalories" placeholder="kcal">
-              </div>
-              <div class="field">
-                <span class="field-label">Optional add-ons</span>
-                <div class="band" style="box-shadow:none;">
-                  <div class="band-body" style="padding: 6px 12px;">
-                    ${state.foodAddons.length ? state.foodAddons.map((addon) => renderAddonPickerRow(addon)).join("") : `<div class="empty-state">ยังไม่มี add-on</div>`}
-                  </div>
-                </div>
-              </div>
+              ${modal.mode === "set" ? renderSetFoodFields() : renderQuickFoodFields()}
               <div class="field">
                 <label for="logNote">Note</label>
                 <textarea id="logNote" data-modal-field="note" placeholder="optional">${escapeHtml(modal.note)}</textarea>
@@ -2510,6 +2797,62 @@
         foodInput.focus();
         modal.shouldFocusFood = false;
       }
+    }
+
+    function renderQuickFoodFields() {
+      const modal = runtime.modal;
+      const suggestions = sortedFoodSuggestions(modal.foodName, modal.foodName ? 6 : 7);
+      return `
+        <div class="field">
+          <label for="foodName">Food name</label>
+          <input id="foodName" autocomplete="off" value="${escapeHtml(modal.foodName)}" data-modal-field="foodName" placeholder="พิมพ์ชื่ออาหาร">
+          <div class="suggestions" id="foodSuggestions">
+            ${suggestions.map((food) => `
+              <button class="suggestion" data-action="pick-food" data-food-id="${food.id}">
+                <div class="name">${escapeHtml(food.name)}</div>
+                <div class="meta">${food.defaultCalories === null ? "ยังไม่มี kcal" : `${food.defaultCalories} kcal`} · ใช้ ${food.usageCount || 0} ครั้ง${food.isStarter ? " · starter" : ""}</div>
+              </button>
+            `).join("")}
+          </div>
+        </div>
+        <div class="field">
+          <label for="baseCalories">Calories</label>
+          <input id="baseCalories" type="number" min="1" inputmode="numeric" value="${escapeHtml(modal.baseCalories)}" data-modal-field="baseCalories" placeholder="kcal">
+        </div>
+        <div class="field">
+          <span class="field-label">Optional add-ons</span>
+          <div class="band" style="box-shadow:none;">
+            <div class="band-body" style="padding: 6px 12px;">
+              ${state.foodAddons.length ? state.foodAddons.map((addon) => renderAddonPickerRow(addon)).join("") : `<div class="empty-state">ยังไม่มี add-on</div>`}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderSetFoodFields() {
+      const modal = runtime.modal;
+      return `
+        <div class="field">
+          <span class="field-label">Food set rows</span>
+          <div class="food-set">
+            ${modal.setItems.map((item, index) => renderSetFoodRow(item, index)).join("")}
+          </div>
+        </div>
+        <button class="btn" type="button" data-action="add-set-row">+ เพิ่มแถว</button>
+      `;
+    }
+
+    function renderSetFoodRow(item, index) {
+      return `
+        <div class="set-row" data-set-row="${item.id}">
+          <input data-set-field="foodName" data-set-index="${index}" value="${escapeHtml(item.foodName)}" placeholder="ชื่ออาหาร">
+          <input data-set-field="calories" data-set-index="${index}" type="number" min="1" inputmode="numeric" value="${escapeHtml(item.calories)}" placeholder="kcal">
+          <input data-set-field="quantity" data-set-index="${index}" type="number" min="0.1" step="0.1" inputmode="decimal" value="${escapeHtml(item.quantity)}" placeholder="จำนวน">
+          <div class="set-subtotal">${setItemSubtotal(item).toLocaleString()} kcal</div>
+          <button class="btn btn-small icon-btn btn-danger" type="button" data-action="remove-set-row" data-set-index="${index}" aria-label="Remove row">×</button>
+        </div>
+      `;
     }
 
     function renderWeightModal(root) {
@@ -2723,6 +3066,45 @@
       const save = root.querySelector("[data-action='save-log']");
       if (save) save.addEventListener("click", saveMealFromModal);
 
+      root.querySelectorAll("[data-action='set-log-mode']").forEach((button) => {
+        button.addEventListener("click", () => {
+          runtime.modal.mode = button.dataset.mode;
+          runtime.modal.errors = [];
+          runtime.modal.shouldFocusFood = runtime.modal.mode === "quick";
+          renderModal();
+        });
+      });
+
+      const addSetRow = root.querySelector("[data-action='add-set-row']");
+      if (addSetRow) {
+        addSetRow.addEventListener("click", () => {
+          runtime.modal.setItems.push(blankSetItem());
+          renderModal();
+        });
+      }
+
+      root.querySelectorAll("[data-action='remove-set-row']").forEach((button) => {
+        button.addEventListener("click", () => {
+          const index = Number(button.dataset.setIndex);
+          if (runtime.modal.setItems.length <= 1) {
+            runtime.modal.setItems = [blankSetItem()];
+          } else {
+            runtime.modal.setItems.splice(index, 1);
+          }
+          renderModal();
+        });
+      });
+
+      root.querySelectorAll("[data-set-field]").forEach((field) => {
+        field.addEventListener("input", () => {
+          const index = Number(field.dataset.setIndex);
+          const key = field.dataset.setField;
+          if (runtime.modal.setItems[index]) runtime.modal.setItems[index][key] = field.value;
+          updateModalTotalText();
+          updateSetSubtotals();
+        });
+      });
+
       root.querySelectorAll("[data-modal-field]").forEach((field) => {
         field.addEventListener("input", () => {
           const key = field.dataset.modalField;
@@ -2848,6 +3230,16 @@
         } else {
           item.textContent = `${modalTotalCalories() || 0} kcal`;
         }
+      });
+    }
+
+    function updateSetSubtotals() {
+      if (!runtime.modal || runtime.modal.mode !== "set") return;
+      document.querySelectorAll("[data-set-row]").forEach((row) => {
+        const id = row.dataset.setRow;
+        const item = runtime.modal.setItems.find((entry) => entry.id === id);
+        const subtotal = row.querySelector(".set-subtotal");
+        if (item && subtotal) subtotal.textContent = `${setItemSubtotal(item).toLocaleString()} kcal`;
       });
     }
 
