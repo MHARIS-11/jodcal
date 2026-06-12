@@ -143,7 +143,8 @@
     .profile-grid,
     .history-grid,
     .summary-grid,
-    .weight-grid {
+    .weight-grid,
+    .exercise-grid {
       display: grid;
       gap: 16px;
     }
@@ -153,7 +154,8 @@
       .profile-grid,
       .history-grid,
       .summary-grid,
-      .weight-grid {
+      .weight-grid,
+      .exercise-grid {
         grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
         align-items: start;
       }
@@ -1112,7 +1114,7 @@
       { id: "home", label: "Home", icon: "H" },
       { id: "history", label: "History", icon: "D" },
       { id: "summary", label: "Summary", icon: "S" },
-      { id: "weight", label: "Weight", icon: "W" },
+      { id: "exercise", label: "Exercise", icon: "E" },
       { id: "profile", label: "Profile", icon: "P" }
     ];
 
@@ -1169,6 +1171,7 @@
       selectedDate: dateKey(new Date()),
       calendarMonth: monthKey(new Date()),
       summaryMonth: monthKey(new Date()),
+      exerciseMonth: monthKey(new Date()),
       foodFilter: "",
       addonFilter: "",
       historyEditMode: false,
@@ -1428,14 +1431,22 @@
     }
 
     function recentFoods(limit = 5) {
-      return [...state.foods]
+      const pinned = [...state.foods]
+        .filter((food) => food.isPinnedRecent)
+        .sort((a, b) => {
+          const pinnedAt = String(b.pinnedRecentAt || "").localeCompare(String(a.pinnedRecentAt || ""));
+          if (pinnedAt !== 0) return pinnedAt;
+          return a.name.localeCompare(b.name, "th");
+        });
+      const smart = [...state.foods]
         .filter((food) => food.defaultCalories !== null && food.usageCount > 0)
+        .filter((food) => !food.isPinnedRecent)
         .sort((a, b) => {
           const last = String(b.lastUsedAt || "").localeCompare(String(a.lastUsedAt || ""));
           if (last !== 0) return last;
           return (b.usageCount || 0) - (a.usageCount || 0);
-        })
-        .slice(0, limit);
+        });
+      return [...pinned, ...smart].slice(0, limit);
     }
 
     function sortedFoodSuggestions(query, limit = 8) {
@@ -1794,6 +1805,16 @@
       render();
     }
 
+    function togglePinnedRecentFood(id) {
+      const food = state.foods.find((item) => item.id === id);
+      if (!food) return;
+      food.isPinnedRecent = !food.isPinnedRecent;
+      food.pinnedRecentAt = food.isPinnedRecent ? nowIso() : null;
+      food.updatedAt = nowIso();
+      saveState();
+      render();
+    }
+
     function deleteFood(id) {
       const food = state.foods.find((item) => item.id === id);
       if (!food || !confirm(`ลบ "${food.name}" ออกจากคลังอาหาร?`)) return;
@@ -2071,7 +2092,7 @@
     function renderCurrentTab() {
       if (runtime.tab === "history") return renderHistory();
       if (runtime.tab === "summary") return renderSummary();
-      if (runtime.tab === "weight") return renderWeight();
+      if (runtime.tab === "exercise" || runtime.tab === "weight") return renderExercise();
       if (runtime.tab === "profile") return renderProfile();
       return renderHome();
     }
@@ -2150,7 +2171,7 @@
                   ${recent.map((food) => `
                     <button class="suggestion" data-action="quick-food" data-food-id="${food.id}">
                       <div class="name">${escapeHtml(food.name)}</div>
-                      <div class="meta">${food.defaultCalories} kcal · ใช้ ${food.usageCount || 0} ครั้ง</div>
+                      <div class="meta">${food.defaultCalories === null ? "ยังไม่มี kcal" : `${food.defaultCalories} kcal`} · ${food.isPinnedRecent ? "pinned · " : ""}ใช้ ${food.usageCount || 0} ครั้ง</div>
                     </button>
                   `).join("")}
                 </div>
@@ -2327,16 +2348,32 @@
           </section>
           <section class="band span-2">
             <div class="band-head">
-              <h2 class="section-title">Exercise Burn</h2>
-              <p class="section-note">จดกิจกรรมและแคลที่เบิร์นเอง ใช้หรือไม่ใช้ก็ได้</p>
+              <h2 class="section-title">Exercise Overview</h2>
+              <p class="section-note">สรุป kcal ที่เบิร์นตามกิจกรรมในเดือนนี้</p>
             </div>
             <div class="band-body form-grid">
-              ${renderExerciseForm()}
-              ${renderExerciseList(runtime.summaryMonth)}
+              ${renderExerciseOverview(runtime.summaryMonth)}
+            </div>
+          </section>
+          <section class="band span-2">
+            <div class="band-head">
+              <h2 class="section-title">Weight Trend</h2>
+              <p class="section-note">ดูน้ำหนักเทียบกับภาพรวมการกินและออกกำลังกาย</p>
+            </div>
+            <div class="band-body">
+              ${renderWeightTrendOnly()}
             </div>
           </section>
         </div>
       `;
+    }
+
+    function renderExerciseOverview(month) {
+      const logs = exerciseLogsForMonth(month);
+      if (!logs.length) {
+        return `<div class="empty-state">ยังไม่มีข้อมูลออกกำลังกายในเดือนนี้<br>บันทึกได้จากแท็บ Exercise</div>`;
+      }
+      return renderExerciseChart(logs);
     }
 
     function renderExerciseForm() {
@@ -2422,6 +2459,37 @@
               <div class="exercise-bar-value">${row.total.toLocaleString()}</div>
             </div>
           `).join("")}
+        </div>
+      `;
+    }
+
+    function renderExercise() {
+      const month = runtime.exerciseMonth;
+      return `
+        <div class="exercise-grid">
+          <section class="band">
+            <div class="band-head">
+              <h2 class="section-title">Exercise</h2>
+              <p class="section-note">บันทึกกิจกรรมและ kcal ที่เบิร์นเอง</p>
+            </div>
+            <div class="band-body form-grid">
+              <div class="field">
+                <label for="exerciseMonth">Month</label>
+                <input id="exerciseMonth" type="month" value="${month}" data-action="exercise-month">
+              </div>
+              ${renderMonthDashboard(month)}
+              ${renderExerciseForm()}
+            </div>
+          </section>
+          <section class="band">
+            <div class="band-head">
+              <h2 class="section-title">Exercise Chart</h2>
+              <p class="section-note">${formatMonth(month)}</p>
+            </div>
+            <div class="band-body">
+              ${renderExerciseList(month)}
+            </div>
+          </section>
         </div>
       `;
     }
@@ -2522,6 +2590,58 @@
               ` : `<div class="empty-state">ยังไม่มีข้อมูลน้ำหนัก<br>เพิ่มน้ำหนักครั้งแรกเพื่อเริ่มติดตาม</div>`}
             </div>
           </section>
+        </div>
+      `;
+    }
+
+    function renderWeightTrendOnly() {
+      const chartLogs = sortedWeightLogs(false);
+      return chartLogs.length ? renderWeightChart(chartLogs) : `<div class="empty-state">ยังไม่มีข้อมูลน้ำหนัก<br>เพิ่มน้ำหนักได้จาก Profile</div>`;
+    }
+
+    function renderWeightProfilePanel() {
+      const sorted = sortedWeightLogs(true);
+      const chartLogs = sortedWeightLogs(false);
+      const first = chartLogs[0] || null;
+      const latest = chartLogs[chartLogs.length - 1] || null;
+      const change = first && latest ? (latest.weightKg - first.weightKg) : 0;
+      return `
+        <div class="form-grid">
+          <div class="stats three">
+            <div class="stat-card">
+              <div class="stat-label">Current</div>
+              <div class="stat-value">${latest ? `${latest.weightKg} kg` : "-"}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Starting</div>
+              <div class="stat-value">${first ? `${first.weightKg} kg` : "-"}</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-label">Change</div>
+              <div class="stat-value">${latest && first ? `${change > 0 ? "+" : ""}${change.toFixed(1)} kg` : "-"}</div>
+            </div>
+          </div>
+          <button class="btn btn-primary" data-action="open-weight">+ บันทึกน้ำหนัก</button>
+          ${chartLogs.length ? renderWeightChart(chartLogs) : `<div class="empty-state">ยังไม่มีข้อมูลน้ำหนัก<br>เพิ่มน้ำหนักครั้งแรกเพื่อเริ่มติดตาม</div>`}
+          ${sorted.length ? `
+            <div class="list compact-list">
+              ${sorted.map((log) => `
+                <article class="item compact-item">
+                  <div class="item-row">
+                    <div>
+                      <div class="item-title">${formatThaiDate(log.date)}</div>
+                      <div class="item-meta">${log.time || "--:--"} · ${escapeHtml(formatWeightNote(log))}</div>
+                    </div>
+                    <div class="item-kcal">${log.weightKg} kg</div>
+                  </div>
+                  <div class="inline-actions">
+                    <button class="btn btn-small" data-action="edit-weight" data-weight-id="${log.id}">Edit</button>
+                    <button class="btn btn-small btn-danger" data-action="delete-weight" data-weight-id="${log.id}">Delete</button>
+                  </div>
+                </article>
+              `).join("")}
+            </div>
+          ` : ""}
         </div>
       `;
     }
@@ -2647,9 +2767,16 @@
           </details>
 
           <details class="band span-2 collapsible">
+            <summary>Weight Tracking</summary>
+            <div class="band-body">
+              ${renderWeightProfilePanel()}
+            </div>
+          </details>
+
+          <details class="band span-2 collapsible">
             <summary>Food Library</summary>
             <div class="band-body form-grid">
-              <p class="section-note">Starter foods มีเฉพาะชื่อ ไม่มี kcal จนกว่าคุณจะกรอกเอง</p>
+              <p class="section-note">Starter foods มีเฉพาะชื่อ ไม่มี kcal จนกว่าคุณจะกรอกเอง · ใช้ Pin Recent เพื่อเลือกอาหารที่อยากให้ขึ้นหน้า Home</p>
               <div class="two-col">
                 <input id="newFoodName" placeholder="Food name">
                 <input id="newFoodCalories" type="number" min="1" inputmode="numeric" placeholder="kcal optional">
@@ -2696,10 +2823,11 @@
               <input data-food-name value="${escapeHtml(food.name)}" aria-label="Food name">
               <input data-food-calories type="number" min="1" inputmode="numeric" value="${food.defaultCalories === null ? "" : food.defaultCalories}" placeholder="kcal empty">
               <div class="inline-actions">
+                <button class="btn btn-small" data-action="toggle-recent-food" data-food-id="${food.id}">${food.isPinnedRecent ? "Unpin" : "Pin Recent"}</button>
                 <button class="btn btn-small" data-action="save-food" data-food-id="${food.id}">Save</button>
                 <button class="btn btn-small btn-danger" data-action="delete-food" data-food-id="${food.id}">Delete</button>
               </div>
-              <div class="item-meta">${foodStatusText(food)}${food.isStarter ? " · starter" : ""}</div>
+              <div class="item-meta">${foodStatusText(food)}${food.isPinnedRecent ? " · pinned recent" : ""}${food.isStarter ? " · starter" : ""}</div>
             </div>
           `).join("")}
         </div>
@@ -2989,6 +3117,7 @@
           }
           if (action === "save-food") saveFoodRow(el.dataset.foodId);
           if (action === "delete-food") deleteFood(el.dataset.foodId);
+          if (action === "toggle-recent-food") togglePinnedRecentFood(el.dataset.foodId);
           if (action === "add-food-library") addCustomFood();
           if (action === "add-addon") addCustomAddon();
           if (action === "save-addon") saveAddonRow(el.dataset.addonId);
@@ -3015,6 +3144,14 @@
       if (summaryMonth) {
         summaryMonth.addEventListener("change", () => {
           runtime.summaryMonth = summaryMonth.value || monthKey(new Date());
+          render();
+        });
+      }
+
+      const exerciseMonth = document.querySelector("[data-action='exercise-month']");
+      if (exerciseMonth) {
+        exerciseMonth.addEventListener("change", () => {
+          runtime.exerciseMonth = exerciseMonth.value || monthKey(new Date());
           render();
         });
       }
